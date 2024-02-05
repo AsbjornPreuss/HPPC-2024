@@ -333,3 +333,7 @@ TSWLatexianTemp*
 *.exe
 *.out
 *.app
+
+*sir
+
+.vscode/settings.json
