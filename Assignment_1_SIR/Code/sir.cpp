@@ -44,6 +44,11 @@ int main() {
     cout << "You have chosen a beta factor of " << beta_factor <<
     ", and a gamma factor of "<< gamma_factor << " and a population of " << population << "\n\n";
 
+    // Declare a Class that will contain S, I and R
+    
+    double SIR_output[int(modelled_time/dt)][3];
+
+
     // Now the infection starts:
     double time = 0; // The model starts at day zero.
     infected_people = 1; // The initial number of infected people are 1. TODO: Allow this to be user determined
@@ -51,23 +56,39 @@ int main() {
 
     // Run the simulation for the required time
     for (time; time<=modelled_time; time += dt){
-
+        // Calculate the differential values
         susceptible_people_differential = change_in_susceptiple_people(beta_factor, infected_people, 
                                                     susceptible_people, population);
         infected_people_differential = change_in_infected_people(beta_factor, infected_people,
                                                     susceptible_people, population, gamma_factor);
         recovered_people_differential = change_in_recovered_people(gamma_factor, infected_people);
         
+        // Add the differential value to SIR values
         susceptible_people += susceptible_people_differential;
         infected_people += infected_people_differential;
         recovered_people += recovered_people_differential;
 
+        // Print the values
         cout << "The amount of infected people are " << floor(infected_people) << "\n";
         cout << "The amount of recovered people are " << floor(recovered_people) << "\n";
         cout << "The amount of susceptible people are " << floor(susceptible_people) << "\n";
         cout << "We have a total population of " << infected_people + recovered_people + susceptible_people << "\n";
         cout << "The time is " << time << "\n\n";   
-    }
 
+        // Add the values to the SIR_output object
+        SIR_output[int(dt*time)][0] = susceptible_people;
+        SIR_output[int(dt*time)][1] = infected_people;
+        SIR_output[int(dt*time)][2] = recovered_people;
+    }
+    // Now we write the result to file
+    string filename = "./sir_output.txt";
+    ofstream fout(filename);
+    fout << "File generated from sir.cpp. Contains: S, I, R\n";
+    for (int i = 0; i <int(modelled_time/dt); i++){
+        fout << SIR_output[i][0]<< " " <<
+          SIR_output[i][1]<< "  "<<
+          SIR_output[i][2] << "\n";
+    }
+ 
     return 0;
 }
