@@ -98,16 +98,6 @@ int main() {
                 << floor(susceptible_people) << " "
                 << time << "\n";
 
-        // Calculate the differential values
-        //susceptible_people_differential = change_in_susceptiple_people(beta_factor, infected_people, 
-        //                                            susceptible_people, population);
-        //infected_people_differential = change_in_infected_people(beta_factor, infected_people,
-        //                                            susceptible_people, population, gamma_factor);
-        //recovered_people_differential = change_in_recovered_people(gamma_factor, infected_people);
-        // Add the differential value to SIR values
-        //susceptible_people += susceptible_people_differential*dt;
-        //infected_people += infected_people_differential*dt;
-        //recovered_people += recovered_people_differential*dt;
         euler_step(beta_factor, gamma_factor, population, dt, susceptible_people,  infected_people,  recovered_people);
             
         cout << "The amount of infected people are " << floor(infected_people) << "\n";
