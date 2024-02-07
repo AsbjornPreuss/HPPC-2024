@@ -64,9 +64,9 @@ int main() {
         recovered_people_differential = change_in_recovered_people(gamma_factor, infected_people);
         
         // Add the differential value to SIR values
-        susceptible_people += susceptible_people_differential;
-        infected_people += infected_people_differential;
-        recovered_people += recovered_people_differential;
+        susceptible_people += susceptible_people_differential*dt;
+        infected_people += infected_people_differential*dt;
+        recovered_people += recovered_people_differential*dt;
 
         // Print the values
         cout << "The amount of infected people are " << floor(infected_people) << "\n";
