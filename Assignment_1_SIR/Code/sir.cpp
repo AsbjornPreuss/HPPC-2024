@@ -51,7 +51,7 @@ void euler_step(double& beta_factor, double& gamma_factor,double& population,dou
 
 
 
-int main() {
+int main(int argc, char *argv[]) {
     // Declare variables used in SIR model. S is susceptible_people, I is infected people, R is recovered people
     double susceptible_people = 0;
     double infected_people = 0;
@@ -85,29 +85,21 @@ int main() {
 
     // Run the simulation for the required time
     for (time; time<=modelled_time; time += dt){
-        // Print the values
+        // Print the values to file
         fout << floor(infected_people) << " "
                 << floor(recovered_people)<< " "
                 << floor(susceptible_people) << " "
                 << time << "\n";
 
-        // Calculate the differential values
-        //susceptible_people_differential = dSdt(beta_factor, infected_people, 
-        //                                            susceptible_people, population);
-        //infected_people_differential = dIdt(beta_factor, infected_people,
-        //                                            susceptible_people, population, gamma_factor);
-        //recovered_people_differential = dRdt(gamma_factor, infected_people);
-        // Add the differential value to SIR values
-        //susceptible_people += susceptible_people_differential*dt;
-        //infected_people += infected_people_differential*dt;
-        //recovered_people += recovered_people_differential*dt;
         euler_step(beta_factor, gamma_factor, population, dt, susceptible_people,  infected_people,  recovered_people);
-            
-        cout << "The amount of infected people are " << floor(infected_people) << "\n";
-        cout << "The amount of recovered people are " << floor(recovered_people) << "\n";
-        cout << "The amount of susceptible people are " << floor(susceptible_people) << "\n";
-        cout << "We have a total population of " << infected_people + recovered_people + susceptible_people << "\n";
-        cout << "The time is " << time << "\n\n";   
+        
+	if (string(argv[1]) == "-v") {
+		cout << "The amount of infected people are " << floor(infected_people) << "\n";
+		cout << "The amount of recovered people are " << floor(recovered_people) << "\n";
+		cout << "The amount of susceptible people are " << floor(susceptible_people) << "\n";
+		cout << "We have a total population of " << infected_people + recovered_people + susceptible_people << "\n";
+		cout << "The time is " << time << "\n\n";
+	}
     }
     // Print the values one last time
     fout << floor(infected_people) << " "
