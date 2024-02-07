@@ -71,7 +71,8 @@ int main() {
         // Print the values
         fout << floor(infected_people) << " "
                 << floor(recovered_people)<< " "
-                << floor(susceptible_people) << "\n";
+                << floor(susceptible_people) << " "
+                << time << "\n";
 
         // Calculate the differential values
         susceptible_people_differential = change_in_susceptiple_people(beta_factor, infected_people, 
