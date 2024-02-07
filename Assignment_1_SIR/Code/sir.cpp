@@ -64,7 +64,7 @@ int main(int argc, char const *argv[]) {
     // Open output file
     string filename = "sir_out.txt";
     ofstream fout(filename);
-    fout << "File generated from sir.cpp. Contains: S, I, R, t\n";
+    fout << "File generated from sir.cpp. Contains: I, R, S, t\n";
 
     // Now the infection starts:
     double time = 0; // The model starts at day zero.
