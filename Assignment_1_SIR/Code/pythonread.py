@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-x, y, z, t = np.loadtxt('sir_out.txt', skiprows=5, unpack=True)
+x, y, z, t = np.loadtxt('sir_out.txt', skiprows=6, unpack=True)
 plt.plot(t, x, label="Infected")
 plt.plot(t, y, label="Recovered")
 plt.plot(t, z, label="Susceptible")
