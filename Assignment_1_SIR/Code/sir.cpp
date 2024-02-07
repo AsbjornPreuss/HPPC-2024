@@ -30,30 +30,23 @@ double ask_for_value(string text, double def_value){
     return value;
 }
 
-double change_in_susceptiple_people(double& beta_factor, double& infected_people, double& susceptible_people, double& population){
+double dSdt(double& beta_factor, double& infected_people, double& susceptible_people, double& population){
     return 0 - beta_factor*infected_people*susceptible_people/population;
 }
 
-double change_in_infected_people(double& beta_factor, double& infected_people, double& susceptible_people, double& population, double& gamma_factor){
+double dIdt(double& beta_factor, double& infected_people, double& susceptible_people, double& population, double& gamma_factor){
     return beta_factor*infected_people*susceptible_people/population - gamma_factor*infected_people;
 }
 
-double change_in_recovered_people(double& gamma_factor, double& infected_people){
+double dRdt(double& gamma_factor, double& infected_people){
     return gamma_factor*infected_people;
 }
 
 void euler_step(double& beta_factor, double& gamma_factor,double& population,double& dt,double& susceptible_people, double& infected_people, double& recovered_people){
-    // Calculate derivatives of SIR
-    double dSdt = change_in_susceptiple_people(beta_factor, infected_people, 
-                                               susceptible_people, population);
-    double dIdt = change_in_infected_people(beta_factor, infected_people,
-                                            susceptible_people, population, gamma_factor);
-    double dRdt = change_in_recovered_people(gamma_factor, infected_people);
-
     // Update SIR
-    susceptible_people += dSdt*dt;
-    infected_people += dIdt*dt;
-    recovered_people += dRdt*dt;
+    susceptible_people += dt*dSdt(beta_factor, infected_people, susceptible_people, population);
+    infected_people += dt*dIdt(beta_factor, infected_people, susceptible_people, population, gamma_factor);
+    recovered_people += dt*dRdt(gamma_factor, infected_people);
 }
 
 
@@ -99,11 +92,11 @@ int main() {
                 << time << "\n";
 
         // Calculate the differential values
-        //susceptible_people_differential = change_in_susceptiple_people(beta_factor, infected_people, 
+        //susceptible_people_differential = dSdt(beta_factor, infected_people, 
         //                                            susceptible_people, population);
-        //infected_people_differential = change_in_infected_people(beta_factor, infected_people,
+        //infected_people_differential = dIdt(beta_factor, infected_people,
         //                                            susceptible_people, population, gamma_factor);
-        //recovered_people_differential = change_in_recovered_people(gamma_factor, infected_people);
+        //recovered_people_differential = dRdt(gamma_factor, infected_people);
         // Add the differential value to SIR values
         //susceptible_people += susceptible_people_differential*dt;
         //infected_people += infected_people_differential*dt;
