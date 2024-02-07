@@ -17,6 +17,7 @@ using namespace std;
 
 double ask_for_value(string text, double def_value){
     // This function takes a text, and prompts the user to give a value. A float must be given
+    // Might potentially overwrite with default value if user supplies 0.
     cout << text;
     double value;
     char input[10];
