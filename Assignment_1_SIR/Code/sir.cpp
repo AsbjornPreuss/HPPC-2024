@@ -12,15 +12,15 @@ double ask_for_value(string text){
     return value;
 }
 
-double change_in_susceptiple_people(double beta_factor, double infected_people, double susceptible_people, double population){
+double change_in_susceptiple_people(double& beta_factor, double& infected_people, double& susceptible_people, double& population){
     return 0 - beta_factor*infected_people*susceptible_people/population;
 }
 
-double change_in_infected_people(double beta_factor, double infected_people, double susceptible_people, double population, double gamma_factor){
+double change_in_infected_people(double& beta_factor, double& infected_people, double& susceptible_people, double& population, double& gamma_factor){
     return beta_factor*infected_people*susceptible_people/population - gamma_factor*infected_people;
 }
 
-double change_in_recovered_people(double gamma_factor, double infected_people){
+double change_in_recovered_people(double& gamma_factor, double& infected_people){
     return gamma_factor*infected_people;
 }
 int main() {
