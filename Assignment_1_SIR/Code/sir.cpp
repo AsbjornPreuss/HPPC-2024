@@ -81,7 +81,7 @@ int main() {
         SIR_output[int(dt*time)][2] = recovered_people;
     }
     // Now we write the result to file
-    string filename = "./sir_output.txt";
+    string filename = "sir_out.txt";
     ofstream fout(filename);
     fout << "File generated from sir.cpp. Contains: S, I, R\n";
     for (int i = 0; i <int(modelled_time/dt); i++){
