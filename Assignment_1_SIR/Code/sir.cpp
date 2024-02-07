@@ -58,7 +58,7 @@ int main() {
     // Open output file
     string filename = "sir_out.txt";
     ofstream fout(filename);
-    fout << "File generated from sir.cpp. Contains: S, I, R\n";
+    fout << "File generated from sir.cpp. Contains: S, I, R, t\n";
 
     // Now the infection starts:
     double time = 0; // The model starts at day zero.
@@ -93,7 +93,8 @@ int main() {
     // Print the values one last time
     fout << floor(infected_people) << " "
         << floor(recovered_people)<< " "
-        << floor(susceptible_people) << "\n";
+        << floor(susceptible_people) << " "
+        << time << "\n";
 
     fout.close();
     return 0;
