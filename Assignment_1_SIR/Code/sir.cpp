@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
 
         euler_step(beta_factor, gamma_factor, population, dt, susceptible_people,  infected_people,  recovered_people);
         
-	if (string(argv[1]) == "-v") {
+	if ((argc>1) && string(argv[1]) == "-v") {
 		cout << "The amount of infected people are " << floor(infected_people) << "\n";
 		cout << "The amount of recovered people are " << floor(recovered_people) << "\n";
 		cout << "The amount of susceptible people are " << floor(susceptible_people) << "\n";

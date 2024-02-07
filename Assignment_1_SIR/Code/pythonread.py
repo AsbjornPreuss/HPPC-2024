@@ -8,6 +8,6 @@ plt.xlabel("Time [days]")
 plt.ylabel("Number of people [#]")
 plt.legend()
 plt.tight_layout()
-plt.savefig("../Report/Images/SIR_plot.png", dpi=400)
+plt.savefig("../Report/Images/SIR_plot_dt10.png", dpi=400)
 plt.show()
 

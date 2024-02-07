@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -g -std=c++11
+CXXFLAGS := -g -O0 -std=c++11
 
 sir: sir.o
 	$(CXX) sir.o -o sir # Runs second ... with object files you only recompile changes
