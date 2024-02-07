@@ -1,4 +1,7 @@
 #include <iostream>
+#include <cmath>
+#include <fstream>
+
 using namespace std;
 
 double ask_for_value(string text){
@@ -30,7 +33,6 @@ int main() {
     double infected_people_differential;
     double recovered_people_differential;
 
-
     // Declare and retrieve the beta gamma and population factors from the users,
     // as well as how long the simulation will run, and the timesteps at which it is evaluated.
     double beta_factor = ask_for_value("Please enter your beta factor in days^-1\n");
@@ -48,7 +50,7 @@ int main() {
     susceptible_people = population - infected_people;
 
     // Run the simulation for the required time
-    for (time; time<=modelled_time;){
+    for (time; time<=modelled_time; time += dt){
 
         susceptible_people_differential = change_in_susceptiple_people(beta_factor, infected_people, 
                                                     susceptible_people, population);
@@ -60,13 +62,11 @@ int main() {
         infected_people += infected_people_differential;
         recovered_people += recovered_people_differential;
 
-        cout << "The amount of infected people are " << infected_people << "\n";
-        cout << "The amount of recovered people are " << recovered_people << "\n";
-        cout << "The amount of susceptible people are " << susceptible_people << "\n";
+        cout << "The amount of infected people are " << floor(infected_people) << "\n";
+        cout << "The amount of recovered people are " << floor(recovered_people) << "\n";
+        cout << "The amount of susceptible people are " << floor(susceptible_people) << "\n";
         cout << "We have a total population of " << infected_people + recovered_people + susceptible_people << "\n";
-        cout << "The time is " << time << "\n\n";
-
-        time += dt;
+        cout << "The time is " << time << "\n\n";   
     }
 
     return 0;
