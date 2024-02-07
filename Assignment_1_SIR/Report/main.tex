@@ -1,6 +1,13 @@
 \documentclass{article}
 \usepackage{color}
 \usepackage{listings}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{amsmath}
+
+\pagecolor[rgb]{0,0,0} %black
+
+\color[rgb]{1,1,1} %grey
 \lstset{language=C++,
 keywordstyle=\color{blue},
 stringstyle=\color{red},
@@ -17,8 +24,40 @@ breakatwhitespace=true
 \section*{Write C++ code that integrates sir for default parameters}
 For this C++ code, please see the end of this file
 \section*{Plot S, I, R (t)}
-In
+In figure \ref{fig: sir_fig}, the SIR model was used to simulate a disease spreading through a population of 1000 people. In the model, the recovery took 10 days, The disease had a beta factor of 0.2, meaning the amount of people per day infected, per infected. The simulation ran for 200 days, had only one infected at day 0. The differential equations were evaluated at time steps of 0.1 days.
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{Assignment_1_SIR/Report/Images/SIR_plot.png} 
+    \caption{A plot of the susceptible, recovered and infected part of the population, as a function of time, according to the SIR model.}
+    \label{fig: sir_fig}
+\end{figure}
+\section*{How many people should be vaccinated to avoid an epidemic?}
+The necessary amount of people to vaccinate to avoid an increase in infected people can be found from the differential equations. We want dI to be negative, this means that the recovery rate multiplied by the amount of infected, must be larger than the infected multiplied with the beta factor and the fraction of susceptible people in the population. Therefore it can become a deterministic equation where,
+\begin{align}
+    \frac{\text{d}I}{dt} &= \beta I \frac{N-I-R}{N} - \gamma I\\
+ \gamma I N&=    \beta I (N-I-R) \\
+     R &= \frac{\beta(N-I) - \gamma N}{\beta}.
+\end{align}
+So the size of the vaccinated population when an epidemic must be avoided should be (in the above example) $(0.2(999)-0.1*1000)/0.2 = 499$ people or greater.
 
-\newline\newline\newline\newline
+\section*{How big should our time step be?}
+In our implementation we use a forward difference euler scheme, which means that we need a relatively small time step, in order to predict the differential equations properly. We have tested this, and found that at time steps above X %TODO Find timestep size
+days our simulation is not stable anymore, and we therefore need a time step below X.
+
+\section*{$\beta$ and $\gamma$ are uncertain estimates of things that are probably not quite constant. How
+do you deal with this?}
+In our implementation this problem was not dealt with, but it could be dealt with by pseudo randomly changing the $\beta$ and $\gamma$ values between each simulation run. Our code has the capabilities for this to be implemented with very little effort, as they are passed to the functions, at each time step.
+
+\section*{How do you know your results are correct? You can never be sure, but provide 5 different methods to strengthen the trust in your results.}
+The 5 requested methods are written out below:
+\begin{enumerate}
+    \item We could test edge cases of the parameters, to see what changes they make, to verify that our simulation breaks down, when it should.
+    \item We could choose a much smaller timestep to strengthen our trust in the solution to the differential equations
+    \item We could compare to the known literature to make sure that we produce similar results.
+    \item We could compare to reality, to make sure that our equations and simulations describe the world, and not just a nice model.
+    \item This needs to be the last item
+\end{enumerate}
+\newpage
+\section*{Source Code}
 \lstinputlisting[language=C++]{../Code/sir.cpp}
 \end{document}
