@@ -139,7 +139,7 @@ public:
 /* system class */
 class System {
 public:
-    std::vector<Molecule> molecules;          // all the molecules in the system
+    std::vector<Molecules> molecules;          // all the molecules in the system
     double time = 0;                          // current simulation time
 };
 
@@ -183,7 +183,7 @@ public:
 
 // Given a bond, updates the force on all atoms correspondingly
 void UpdateBondForces(System& sys){
-    for (Molecule& molecule : sys.molecules)
+    /*for (Molecules& molecule : sys.molecules)
     // Loops over the (2 for water) bond constraints
     for (Bond& bond : molecule.bonds){
         auto& atom1=molecule.atoms[bond.a1];
@@ -194,13 +194,13 @@ void UpdateBondForces(System& sys){
         atom1.f += f;
         atom2.f -= f; 
         accumulated_forces_bond += f.mag();
-    }
+    }*/
 }
 
 // Iterates over all bonds in molecules (for water only 2: the left and right)
 // And updates forces on atoms correpondingly
 void UpdateAngleForces(System& sys){
-    for (Molecule& molecule : sys.molecules)
+    /*for (Molecules& molecule : sys.molecules)
     for (Angle& angle : molecule.angles){
         //====  angle forces  (H--O---H bonds) U_angle = 0.5*k_a(phi-phi_0)^2
         //f_H1 =  K(phi-ph0)/|H1O|*Ta
@@ -238,7 +238,7 @@ void UpdateAngleForces(System& sys){
         atom3.f += f3;
 
         accumulated_forces_angle += f1.mag() + f3.mag();
-    }
+    }*/
 }
 
 // Iterates over all atoms in both molecules
@@ -247,7 +247,7 @@ void UpdateNonBondedForces(System& sys){
     /* nonbonded forces: only a force between atoms in different molecules
        The total non-bonded forces come from Lennard Jones (LJ) and coulomb interactions
        U = ep[(sigma/r)^12-(sigma/r)^6] + C*q1*q2/r */
-    for (long unsigned int i = 0;   i < sys.molecules.size(); i++)
+   /*  for (long unsigned int i = 0;   i < sys.molecules.size(); i++)
     for (long unsigned int j = i+1; j < sys.molecules.size(); j++)
     for (auto& atom1 : sys.molecules[i].atoms)
         for (auto& atom2 : sys.molecules[j].atoms){ // iterate over all pairs of atoms, similar as well as dissimilar
@@ -267,13 +267,13 @@ void UpdateNonBondedForces(System& sys){
             atom2.f -= f;
 
             accumulated_forces_non_bond += f.mag();
-        }
+        } */
 }
 
 // integrating the system for one time step using Leapfrog symplectic integration
 void Evolve(System &sys, Sim_Configuration &sc){
 
-    // Kick velocities and zero forces for next update
+    /* // Kick velocities and zero forces for next update
     // Drift positions: Loop over molecules and atoms inside the molecules
     for (Molecule& molecule : sys.molecules)
     for (auto& atom : molecule.atoms){
@@ -289,7 +289,7 @@ void Evolve(System &sys, Sim_Configuration &sc){
     // Calculate the intramolecular LJ and Coulomb potential forces between all molecules
     UpdateNonBondedForces(sys);
 
-    sys.time += sc.dt; // update time
+    sys.time += sc.dt; // update time */
 }
 
 // Setup one water molecule
@@ -305,9 +305,9 @@ System MakeWater(int N_molecules){
     const double angle = 104.45*deg2rad;    
 
     //         mass    ep    sigma charge name
-    Atom Oatom(16, 0.65,    0.31, -0.82, "O");  // Oxygen atom
-    Atom Hatom1( 1, 0.18828, 0.238, 0.41, "H"); // Hydrogen atom
-    Atom Hatom2( 1, 0.18828, 0.238, 0.41, "H"); // Hydrogen atom
+    Atoms Oatom(16, 0.65,    0.31, -0.82, "O", N_molecules);  // Oxygen atom
+    Atoms Hatom1( 1, 0.18828, 0.238, 0.41, "H", N_molecules); // Hydrogen atom
+    Atoms Hatom2( 1, 0.18828, 0.238, 0.41, "H", N_molecules); // Hydrogen atom
 
     // bonds beetween first H-O and second H-O respectively
     std::vector<Bond> waterbonds = {
@@ -323,10 +323,10 @@ System MakeWater(int N_molecules){
     System sys;
     for (int i = 0; i < N_molecules; i++){
         Vec3 P0{i * 0.2, i * 0.2, 0};
-        Oatom.p  = {P0.x, P0.y, P0.z};
-        Hatom1.p = {P0.x+L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
-        Hatom2.p = {P0.x-L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
-        std::vector<Atom> atoms {Oatom, Hatom1, Hatom2};
+        Oatom.p[i]  = {P0.x, P0.y, P0.z};
+        Hatom1.p[i] = {P0.x+L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
+        Hatom2.p[i] = {P0.x-L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
+        std::vector<Atoms> atoms {Oatom, Hatom1, Hatom2};
 
         sys.molecules.push_back({atoms, waterbonds, waterangle});
     }
@@ -338,19 +338,20 @@ System MakeWater(int N_molecules){
 // Write the system configurations in the trajectory file.
 void WriteOutput(System& sys, std::ofstream& file){  
     // Loop over all atoms in model one molecule at a time and write out position
-    for (Molecule& molecule : sys.molecules)
+    /* for (Molecule& molecule : sys.molecules)
     for (auto& atom : molecule.atoms){
         file << sys.time << " " << atom.name << " " 
             << atom.p.x << " " 
             << atom.p.y << " " 
             << atom.p.z << '\n';
-    }
+    } */
 }
 
 //======================================================================================================
 //======================== Main function ===============================================================
 //======================================================================================================
-int main(int argc, char* argv[]){    
+int main(int argc, char* argv[]){
+    // Checked by Daniel. Seems to not need changes for vectorisation.
     Sim_Configuration sc({argv, argv+argc}); // Load the system configuration from command line data
     
     System sys  = MakeWater(sc.no_mol);   // this will create a system containing sc.no_mol water molecules
@@ -360,16 +361,16 @@ int main(int argc, char* argv[]){
     
     auto tstart = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     
-    // MD sim is commented out. First step is to MakeWater in a vectorised version.
+    // All forces in the simulation are commented out, to check that makewater is vectorised.
     // Molecular dynamics simulation
-   /*  for (int step = 0;step<sc.steps ; step++){
+    for (int step = 0;step<sc.steps ; step++){
 
         Evolve(sys, sc); // evolving the system by one step
         if (step % sc.data_period == 0){
             //writing the configuration in the trajectory file
             WriteOutput(sys, file);
         }
-    } */
+    }
 
     auto tend = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
 
