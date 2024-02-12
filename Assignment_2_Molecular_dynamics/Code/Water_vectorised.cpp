@@ -360,24 +360,25 @@ int main(int argc, char* argv[]){
     
     auto tstart = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     
+    // MD sim is commented out. First step is to MakeWater in a vectorised version.
     // Molecular dynamics simulation
-    for (int step = 0;step<sc.steps ; step++){
+   /*  for (int step = 0;step<sc.steps ; step++){
 
         Evolve(sys, sc); // evolving the system by one step
         if (step % sc.data_period == 0){
             //writing the configuration in the trajectory file
             WriteOutput(sys, file);
         }
-    }
+    } */
 
     auto tend = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
 
     std::cout <<  "Elapsed time:" << std::setw(9) << std::setprecision(4)
               << (tend - tstart).count()*1e-9 << "\n";
-    std::cout <<  "Accumulated forces Bonds   : "  << std::setw(9) << std::setprecision(5) 
+/*     std::cout <<  "Accumulated forces Bonds   : "  << std::setw(9) << std::setprecision(5) 
               << accumulated_forces_bond << "\n";
     std::cout <<  "Accumulated forces Angles  : "  << std::setw(9) << std::setprecision(5)
               << accumulated_forces_angle << "\n";
     std::cout <<  "Accumulated forces Non-bond: "  << std::setw(9) << std::setprecision(5)
-              << accumulated_forces_non_bond << "\n";
+              << accumulated_forces_non_bond << "\n"; */
 }
