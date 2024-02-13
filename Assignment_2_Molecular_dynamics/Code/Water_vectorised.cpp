@@ -201,7 +201,7 @@ void UpdateBondForces(System& sys){
 // Iterates over all bonds in molecules (for water only 2: the left and right)
 // And updates forces on atoms correpondingly
 void UpdateAngleForces(System& sys){
-    /*for (Molecules& molecule : sys.molecules)
+    Molecules& molecule = sys.molecules;
     for (Angle& angle : molecule.angles){
         //====  angle forces  (H--O---H bonds) U_angle = 0.5*k_a(phi-phi_0)^2
         //f_H1 =  K(phi-ph0)/|H1O|*Ta
@@ -213,33 +213,34 @@ void UpdateAngleForces(System& sys){
         auto& atom1=molecule.atoms[angle.a1];
         auto& atom2=molecule.atoms[angle.a2];
         auto& atom3=molecule.atoms[angle.a3];
+        for (int i=0; i<molecule.no_mol; i++){
+            Vec3 d21 = atom2.p[i]-atom1.p[i];     
+            Vec3 d23 = atom2.p[i]-atom3.p[i];    
 
-        Vec3 d21 = atom2.p-atom1.p;     
-        Vec3 d23 = atom2.p-atom3.p;    
+            // phi = d21 dot d23 / |d21| |d23|
+            double norm_d21 = d21.mag();
+            double norm_d23 = d23.mag();
+            double phi = acos(dot(d21, d23) / (norm_d21*norm_d23));
 
-        // phi = d21 dot d23 / |d21| |d23|
-        double norm_d21 = d21.mag();
-        double norm_d23 = d23.mag();
-        double phi = acos(dot(d21, d23) / (norm_d21*norm_d23));
+            // d21 cross (d21 cross d23)
+            Vec3 c21_23 = cross(d21, d23);
+            Vec3 Ta = cross(d21, c21_23);
+            Ta /= Ta.mag();
 
-        // d21 cross (d21 cross d23)
-        Vec3 c21_23 = cross(d21, d23);
-        Vec3 Ta = cross(d21, c21_23);
-        Ta /= Ta.mag();
+            // d23 cross (d23 cross d21) = - d23 cross (d21 cross d23) = c21_23 cross d23
+            Vec3 Tc = cross(c21_23, d23);
+            Tc /= Tc.mag();
 
-        // d23 cross (d23 cross d21) = - d23 cross (d21 cross d23) = c21_23 cross d23
-        Vec3 Tc = cross(c21_23, d23);
-        Tc /= Tc.mag();
+            Vec3 f1 = Ta*(angle.K*(phi-angle.Phi0)/norm_d21);
+            Vec3 f3 = Tc*(angle.K*(phi-angle.Phi0)/norm_d23);
 
-        Vec3 f1 = Ta*(angle.K*(phi-angle.Phi0)/norm_d21);
-        Vec3 f3 = Tc*(angle.K*(phi-angle.Phi0)/norm_d23);
+            atom1.f[i] += f1;
+            atom2.f[i] -= f1+f3;
+            atom3.f[i] += f3;
 
-        atom1.f += f1;
-        atom2.f -= f1+f3;
-        atom3.f += f3;
-
-        accumulated_forces_angle += f1.mag() + f3.mag();
-    }*/
+            accumulated_forces_angle += f1.mag() + f3.mag();
+        }
+    }
 }
 
 // Iterates over all atoms in both molecules
