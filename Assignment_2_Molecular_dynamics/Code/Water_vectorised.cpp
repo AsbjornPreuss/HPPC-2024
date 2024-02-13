@@ -183,18 +183,19 @@ public:
 
 // Given a bond, updates the force on all atoms correspondingly
 void UpdateBondForces(System& sys){
-    /*for (Molecules& molecule : sys.molecules)
+    Molecules& molecule = sys.molecules;
     // Loops over the (2 for water) bond constraints
     for (Bond& bond : molecule.bonds){
         auto& atom1=molecule.atoms[bond.a1];
         auto& atom2=molecule.atoms[bond.a2];
-
-        Vec3 dp  = atom1.p-atom2.p;
-        Vec3 f   = -bond.K*(1-bond.L0/dp.mag())*dp;
-        atom1.f += f;
-        atom2.f -= f; 
-        accumulated_forces_bond += f.mag();
-    }*/
+        for (int i=0; i<molecule.no_mol; i++){
+            Vec3 dp  = atom1.p[i]-atom2.p[i];
+            Vec3 f   = -bond.K*(1-bond.L0/dp.mag())*dp;
+            atom1.f[i] += f;
+            atom2.f[i] -= f; 
+            accumulated_forces_bond += f.mag();
+        }
+    }
 }
 
 // Iterates over all bonds in molecules (for water only 2: the left and right)
