@@ -139,8 +139,8 @@ public:
 /* system class */
 class System {
 public:
-    std::vector<Molecules> molecules;          // all the molecules in the system
-    double time = 0;                          // current simulation time
+    Molecules molecules; // The molecules in the system. Changed from seq.
+    double time = 0;     // current simulation time
 };
 
 class Sim_Configuration {
@@ -328,7 +328,8 @@ System MakeWater(int N_molecules){
         Hatom2.p[i] = {P0.x-L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
         std::vector<Atoms> atoms {Oatom, Hatom1, Hatom2};
 
-        sys.molecules.push_back({atoms, waterbonds, waterangle});
+        sys.molecules ={atoms, waterbonds, waterangle, N_molecules};
+        // Above we are passing an extra argument to sys.molecules, compared to seq.
     }
     
     // Store atoms, bonds and angles in Water class and return
@@ -338,13 +339,16 @@ System MakeWater(int N_molecules){
 // Write the system configurations in the trajectory file.
 void WriteOutput(System& sys, std::ofstream& file){  
     // Loop over all atoms in model one molecule at a time and write out position
-    /* for (Molecule& molecule : sys.molecules)
-    for (auto& atom : molecule.atoms){
-        file << sys.time << " " << atom.name << " " 
-            << atom.p.x << " " 
-            << atom.p.y << " " 
-            << atom.p.z << '\n';
-    } */
+
+    Molecules& molecule = sys.molecules; // First make an alias for the molecules in the system
+    for (auto& atoms : molecule.atoms){ //Loop over all the different types of atoms
+        for (int i = 0; i<molecule.no_mol; i++){ //Write the position of each different atom, that is the same type.
+            file << sys.time << " " << atoms.name << " " 
+                << atoms.p[i].x << " " 
+                << atoms.p[i].y << " " 
+                << atoms.p[i].z << '\n';
+        }
+    }
 }
 
 //======================================================================================================
@@ -354,11 +358,11 @@ int main(int argc, char* argv[]){
     // Checked by Daniel. Seems to not need changes for vectorisation.
     Sim_Configuration sc({argv, argv+argc}); // Load the system configuration from command line data
     
+    // Checked by Daniel. Seems to vectorise nicely now.
     System sys  = MakeWater(sc.no_mol);   // this will create a system containing sc.no_mol water molecules
     std::ofstream file(sc.filename); // open file
 
     WriteOutput(sys, file);    // writing the initial configuration in the trajectory file
-    
     auto tstart = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     
     // All forces in the simulation are commented out, to check that makewater is vectorised.
