@@ -249,11 +249,11 @@ void UpdateNonBondedForces(System& sys){
     /* nonbonded forces: only a force between atoms in different molecules
        The total non-bonded forces come from Lennard Jones (LJ) and coulomb interactions
        U = ep[(sigma/r)^12-(sigma/r)^6] + C*q1*q2/r */
-   /*  for (long unsigned int i = 0;   i < sys.molecules.size(); i++)
-    for (long unsigned int j = i+1; j < sys.molecules.size(); j++)
-    for (auto& atom1 : sys.molecules[i].atoms)
-        for (auto& atom2 : sys.molecules[j].atoms){ // iterate over all pairs of atoms, similar as well as dissimilar
-            Vec3 dp = atom1.p-atom2.p;
+    for ( int i = 0;   i < sys.molecules.no_mol; i++){
+    for ( int j = i+1; j < sys.molecules.no_mol; j++){
+    for (auto& atom1 : sys.molecules.atoms)
+        for (auto& atom2 : sys.molecules.atoms){ // iterate over all pairs of atoms, similar as well as dissimilar
+            Vec3 dp = atom1.p[i]-atom2.p[j];
 
             double r  = dp.mag();                   
             double r2 = r*r;
@@ -265,11 +265,13 @@ void UpdateNonBondedForces(System& sys){
             double sir = sigma*sigma/r2; // crossection**2 times inverse squared distance
             double KC = 80*0.7;          // Coulomb prefactor
             Vec3 f = ep*(12*pow(sir,6)-6*pow(sir,3))*sir*dp + KC*q1*q2/(r*r2)*dp; // LJ + Coulomb forces
-            atom1.f += f;
-            atom2.f -= f;
+            atom1.f[i] += f;
+            atom2.f[j] -= f;
 
             accumulated_forces_non_bond += f.mag();
-        } */
+        }
+    }
+    }
 }
 
 // integrating the system for one time step using Leapfrog symplectic integration
@@ -384,10 +386,10 @@ int main(int argc, char* argv[]){
 
     std::cout <<  "Elapsed time:" << std::setw(9) << std::setprecision(4)
               << (tend - tstart).count()*1e-9 << "\n";
-/*     std::cout <<  "Accumulated forces Bonds   : "  << std::setw(9) << std::setprecision(5) 
+    std::cout <<  "Accumulated forces Bonds   : "  << std::setw(9) << std::setprecision(5) 
               << accumulated_forces_bond << "\n";
     std::cout <<  "Accumulated forces Angles  : "  << std::setw(9) << std::setprecision(5)
               << accumulated_forces_angle << "\n";
     std::cout <<  "Accumulated forces Non-bond: "  << std::setw(9) << std::setprecision(5)
-              << accumulated_forces_non_bond << "\n"; */
+              << accumulated_forces_non_bond << "\n";
 }
