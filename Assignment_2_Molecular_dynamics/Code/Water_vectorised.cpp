@@ -273,13 +273,15 @@ void UpdateNonBondedForces(System& sys){
 // integrating the system for one time step using Leapfrog symplectic integration
 void Evolve(System &sys, Sim_Configuration &sc){
 
-    /* // Kick velocities and zero forces for next update
+    // Kick velocities and zero forces for next update
     // Drift positions: Loop over molecules and atoms inside the molecules
-    for (Molecule& molecule : sys.molecules)
+    Molecules& molecule = sys.molecules;
     for (auto& atom : molecule.atoms){
-        atom.v += sc.dt/atom.mass*atom.f;    // Update the velocities
-        atom.f  = {0,0,0};                   // set the forces zero to prepare for next potential calculation
-        atom.p += sc.dt* atom.v;             // update position
+        for (int i=0; i<molecule.no_mol; i++){
+            atom.v[i] += sc.dt/atom.mass*atom.f[i];    // Update the velocities
+            atom.f[i]  = {0,0,0};                      // set the forces zero to prepare for next potential calculation
+            atom.p[i] += sc.dt* atom.v[i];             // update position
+        }
     }
 
     // Update the forces on each particle based on the particles positions
@@ -289,7 +291,7 @@ void Evolve(System &sys, Sim_Configuration &sc){
     // Calculate the intramolecular LJ and Coulomb potential forces between all molecules
     UpdateNonBondedForces(sys);
 
-    sys.time += sc.dt; // update time */
+    sys.time += sc.dt; // update time
 }
 
 // Setup one water molecule
