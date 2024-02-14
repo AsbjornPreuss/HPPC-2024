@@ -8,12 +8,14 @@ CXX := g++
 OPT=-O3 -ffast-math
 
 # Add profiling to code
-OPT=-O1 -pg
+OPT=-O1 -pg -fopt-info-vec-optimized -fopt-info-vec-missed
+OPT=-O3 -ffast-math -fopt-info-vec-optimized -fopt-info-vec-missed
+OPT=-O3 -ffast-math -fopt-info-vec-optimized -mtune=native
 
 # Faster compilation time
 #OPT=-O1
 
-CXXFLAGS := $(OPT) -Wall -march=znver1 -g -std=c++14
+CXXFLAGS := $(OPT) -Wall -g -std=c++14
 
 default: seq vec
 

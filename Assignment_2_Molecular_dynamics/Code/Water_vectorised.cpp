@@ -188,6 +188,7 @@ void UpdateBondForces(System& sys){
     for (Bond& bond : molecules.bonds){
         auto& atoms1=molecules.atoms[bond.a1];
         auto& atoms2=molecules.atoms[bond.a2];
+        #pragma omp simd reduction(+:accumulated_forces_bond)
         for (int i=0; i<molecules.no_mol; i++){
             Vec3 dp  = atoms1.p[i]-atoms2.p[i];
             Vec3 f   = -bond.K*(1-bond.L0/dp.mag())*dp;
@@ -249,29 +250,28 @@ void UpdateNonBondedForces(System& sys){
     /* nonbonded forces: only a force between atoms in different molecules
        The total non-bonded forces come from Lennard Jones (LJ) and coulomb interactions
        U = ep[(sigma/r)^12-(sigma/r)^6] + C*q1*q2/r */
-    for ( int i = 0;   i < sys.molecules.no_mol; i++){
-    for ( int j = i+1; j < sys.molecules.no_mol; j++){
     for (auto& atoms1 : sys.molecules.atoms)
-        for (auto& atoms2 : sys.molecules.atoms){ // iterate over all pairs of atoms, similar as well as dissimilar
-            Vec3 dp = atoms1.p[i]-atoms2.p[j];
-
-            double r  = dp.mag();                   
-            double r2 = r*r;
+    for (auto& atoms2 : sys.molecules.atoms){
             double ep = sqrt(atoms1.ep*atoms2.ep); // ep = sqrt(ep1*ep2)
             double sigma = 0.5*(atoms1.sigma+atoms2.sigma);  // sigma = (sigma1+sigma2)/2
-            double q1 = atoms1.charge;
-            double q2 = atoms2.charge;
+            double q1q2 = atoms1.charge*atoms2.charge;
+
+            double KC = 80*0.7;          // Coulomb prefactor
+		for (int i = 0; i< sys.molecules.no_mol; i++) // Note, this way of counting, while better for cache
+													  // use might lead to floating point errors
+		for (int j = i+1; j<sys.molecules.no_mol; j++){
+            Vec3 dp = atoms1.p[i]-atoms2.p[j];
+            double r  = dp.mag();                   
+            double r2 = r*r;
 
             double sir = sigma*sigma/r2; // crossection**2 times inverse squared distance
-            double KC = 80*0.7;          // Coulomb prefactor
-            Vec3 f = ep*(12*pow(sir,6)-6*pow(sir,3))*sir*dp + KC*q1*q2/(r*r2)*dp; // LJ + Coulomb forces
+            Vec3 f = ep*(12*pow(sir,6)-6*pow(sir,3))*sir*dp + KC*q1q2/(r*r2)*dp; // LJ + Coulomb forces
             atoms1.f[i] += f;
             atoms2.f[j] -= f;
 
             accumulated_forces_non_bond += f.mag();
-        }
-    }
-    }
+		}
+	}
 }
 
 // integrating the system for one time step using Leapfrog symplectic integration
