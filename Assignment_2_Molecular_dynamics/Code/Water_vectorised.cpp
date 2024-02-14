@@ -332,11 +332,11 @@ System MakeWater(int N_molecules){
         Oatoms.p[i]  = {P0.x, P0.y, P0.z};
         Hatoms1.p[i] = {P0.x+L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
         Hatoms2.p[i] = {P0.x-L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
+    }
         std::vector<Atoms> atoms {Oatoms, Hatoms1, Hatoms2};
-
         sys.molecules ={atoms, waterbonds, waterangles, N_molecules};
         // Above we are passing an extra argument to sys.molecules, compared to seq.
-    }
+    
     
     // Store atoms, bonds and angles in Water class and return
     return sys;
