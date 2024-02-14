@@ -116,11 +116,12 @@ public:
     double charge;        // charge of the atom (partial charge)
     std::string name;     // Name of the atom
     // the position in (nm), velocity (nm/ps) and forces (k_BT/nm) of the atom
-    std::vector<Vec3> p,v,f;
+    std::vector<Vec3> v,f;
+    std::vector<double> px,py,pz;
     // constructor, takes parameters and allocates p, v and f properly to have N_identical elements
     Atoms(double mass, double ep, double sigma, double charge, std::string name, size_t N_identical) 
     : mass{mass}, ep{ep}, sigma{sigma}, charge{charge}, name{name}, 
-      p{N_identical, {0,0,0}}, v{N_identical, {0,0,0}}, f{N_identical, {0,0,0}}
+      px(N_identical, 0), py(N_identical, 0), pz(N_identical, 0), v{N_identical, {0,0,0}}, f{N_identical, {0,0,0}}
     {}
 };
 
@@ -190,7 +191,9 @@ void UpdateBondForces(System& sys){
         auto& atoms2=molecules.atoms[bond.a2];
         #pragma omp simd reduction(+:accumulated_forces_bond)
         for (int i=0; i<molecules.no_mol; i++){
-            Vec3 dp  = atoms1.p[i]-atoms2.p[i];
+	    Vec3 p1 = {atoms1.px[i],atoms1.py[i],atoms1.pz[i]};
+	    Vec3 p2 = {atoms2.px[i],atoms2.py[i],atoms2.pz[i]};
+            Vec3 dp  = p1-p2;
             Vec3 f   = -bond.K*(1-bond.L0/dp.mag())*dp;
             atoms1.f[i] += f;
             atoms2.f[i] -= f; 
@@ -215,8 +218,11 @@ void UpdateAngleForces(System& sys){
         auto& atoms2=molecules.atoms[angles.a2];
         auto& atoms3=molecules.atoms[angles.a3];
         for (int i=0; i<molecules.no_mol; i++){
-            Vec3 d21 = atoms2.p[i]-atoms1.p[i];   // Oxygen is index 0, but atom 2 in molecule
-            Vec3 d23 = atoms2.p[i]-atoms3.p[i];    
+	    Vec3 p1 = {atoms1.px[i],atoms1.py[i],atoms1.pz[i]};
+	    Vec3 p2 = {atoms2.px[i],atoms2.py[i],atoms2.pz[i]};
+	    Vec3 p3 = {atoms3.px[i],atoms3.py[i],atoms3.pz[i]};
+            Vec3 d21 = p2-p1;   // Oxygen is index 0, but atom 2 in molecule
+            Vec3 d23 = p2-p3;    
 
             // phi = d21 dot d23 / |d21| |d23|
             double norm_d21 = d21.mag();
@@ -254,23 +260,32 @@ void UpdateNonBondedForces(System& sys){
     for (auto& atoms2 : sys.molecules.atoms){
             double ep = sqrt(atoms1.ep*atoms2.ep); // ep = sqrt(ep1*ep2)
             double sigma = 0.5*(atoms1.sigma+atoms2.sigma);  // sigma = (sigma1+sigma2)/2
+	    double sigma2 = sigma*sigma;
             double q1q2 = atoms1.charge*atoms2.charge;
 
             double KC = 80*0.7;          // Coulomb prefactor
-		for (int i = 0; i< sys.molecules.no_mol; i++) // Note, this way of counting, while better for cache
-													  // use might lead to floating point errors
+		for (int i = 0; i< sys.molecules.no_mol; i++){ // Note, this way of counting, while better for cache
+							  // use might lead to floating point errors
+		Vec3 af = {0,0,0};
+		#pragma omp declare reduction(+:Vec3:omp_out += omp_in) initializer(omp_priv = omp_orig)
+		#pragma omp simd reduction(+:accumulated_forces_non_bond,af)
 		for (int j = i+1; j<sys.molecules.no_mol; j++){
-            Vec3 dp = atoms1.p[i]-atoms2.p[j];
-            double r  = dp.mag();                   
-            double r2 = r*r;
+			Vec3 p1 = {atoms1.px[i],atoms1.py[i],atoms1.pz[i]};
+			Vec3 p2 = {atoms2.px[j],atoms2.py[j],atoms2.pz[j]};
+            		Vec3 dp = p1-p2;
+            		double r  = dp.mag();                   
+            		double r2 = r*r;
 
-            double sir = sigma*sigma/r2; // crossection**2 times inverse squared distance
-            Vec3 f = ep*(12*pow(sir,6)-6*pow(sir,3))*sir*dp + KC*q1q2/(r*r2)*dp; // LJ + Coulomb forces
-            atoms1.f[i] += f;
-            atoms2.f[j] -= f;
+            		double sir = sigma2/r2; // crossection**2 times inverse squared distance
+			double sir3 = sir*sir*sir;
+            		Vec3 f = ep*(12*sir3*sir3-6*sir3)*sir*dp + KC*q1q2/(r*r2)*dp; // LJ + Coulomb forces
+            		af += f;
+            		atoms2.f[j] -= f;
 
-            accumulated_forces_non_bond += f.mag();
+            		accumulated_forces_non_bond += f.mag();
 		}
+		atoms1.f[i] += af;
+	}
 	}
 }
 
@@ -282,9 +297,11 @@ void Evolve(System &sys, Sim_Configuration &sc){
     Molecules& molecules = sys.molecules;
     for (auto& atoms : molecules.atoms){ 		// Loop over all the different types of atoms O, H1, H2
         for (int i=0; i<molecules.no_mol; i++){
+	    Vec3 p = {atoms.px[i],atoms.py[i],atoms.pz[i]}; // Load position into a vector
             atoms.v[i] += sc.dt/atoms.mass*atoms.f[i];    // Update the velocities
             atoms.f[i]  = {0,0,0};                      // set the forces zero to prepare for next potential calculation
-            atoms.p[i] += sc.dt* atoms.v[i];             // update position
+            p += sc.dt* atoms.v[i];             // update position
+	    atoms.px[i] = p.x; atoms.py[i] = p.y; atoms.pz[i] = p.z;
         }
     }
 
@@ -329,9 +346,9 @@ System MakeWater(int N_molecules){
     System sys;
     for (int i = 0; i < N_molecules; i++){
         Vec3 P0{i * 0.2, i * 0.2, 0};
-        Oatoms.p[i]  = {P0.x, P0.y, P0.z};
-        Hatoms1.p[i] = {P0.x+L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
-        Hatoms2.p[i] = {P0.x-L0*sin(angle/2), P0.y+L0*cos(angle/2), P0.z};
+        Oatoms.px[i]  = P0.x; Oatoms.py[i] = P0.y; Oatoms.pz[i] = P0.z;
+	Hatoms1.px[i] = P0.x+L0*sin(angle/2); Hatoms1.py[i] = P0.y+L0*cos(angle/2); Hatoms1.pz[i] = P0.z;
+	Hatoms2.px[i] = P0.x-L0*sin(angle/2); Hatoms2.py[i] = P0.y+L0*cos(angle/2); Hatoms2.pz[i] = P0.z;
     }
         std::vector<Atoms> atoms {Oatoms, Hatoms1, Hatoms2};
         sys.molecules ={atoms, waterbonds, waterangles, N_molecules};
@@ -350,9 +367,9 @@ void WriteOutput(System& sys, std::ofstream& file){
     for (auto& atoms : molecules.atoms){ //Loop over all the different types of atoms
         for (int i = 0; i<molecules.no_mol; i++){ //Write the position of each different atom, that is the same type.
             file << sys.time << " " << atoms.name << " " 
-                << atoms.p[i].x << " " 
-                << atoms.p[i].y << " " 
-                << atoms.p[i].z << '\n';
+                << atoms.px[i] << " " 
+                << atoms.py[i] << " " 
+                << atoms.pz[i] << '\n';
         }
     }
 }
