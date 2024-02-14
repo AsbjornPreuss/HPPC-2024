@@ -11,7 +11,7 @@ OPT=-O3 -ffast-math
 OPT=-O1 -pg
 
 # Faster compilation time
-OPT=-O1
+#OPT=-O1
 
 CXXFLAGS := $(OPT) -Wall -march=znver1 -g -std=c++14
 
