@@ -61,23 +61,6 @@ double dot(const Vec3& a, const Vec3& b){
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-/* atom class */
-class Atom {
-public:
-    // The mass of the atom in (U)
-    double mass;
-    double ep;            // epsilon for LJ potential
-    double sigma;         // Sigma, somehow the size of the atom
-    double charge;        // charge of the atom (partial charge)
-    std::string name;     // Name of the atom
-    // the position in (nm), velocity (nm/ps) and forces (k_BT/nm) of the atom
-    Vec3 p,v,f;
-    // constructor, takes parameters and allocates p, v and f properly
-    Atom(double mass, double ep, double sigma, double charge, std::string name) 
-    : mass{mass}, ep{ep}, sigma{sigma}, charge{charge}, name{name}, p{0,0,0}, v{0,0,0}, f{0,0,0}
-    {}
-};
-
 /* a class for the bond between two atoms U = 0.5k(r12-L0)^2 */
 class Bond {
 public:
@@ -94,13 +77,6 @@ public:
     int a1, a2, a3; // the indexes of the three atoms, with a2 being the centre atom
 };
 
-/* molecule class */
-class Molecule {
-public:
-    std::vector<Atom> atoms;          // list of atoms in the molecule
-    std::vector<Bond> bonds;          // the bond potentials, eg for water the left and right bonds
-    std::vector<Angle> angles;        // the angle potentials, for water just the single one, but keep it a list for generality
-};
 
 // ===============================================================================
 // Two new classes arranging Atoms in a Structure-of-Array data structure
@@ -378,10 +354,8 @@ void WriteOutput(System& sys, std::ofstream& file){
 //======================== Main function ===============================================================
 //======================================================================================================
 int main(int argc, char* argv[]){
-    // Checked by Daniel. Seems to not need changes for vectorisation.
     Sim_Configuration sc({argv, argv+argc}); // Load the system configuration from command line data
     
-    // Checked by Daniel. Seems to vectorise nicely now.
     System sys  = MakeWater(sc.no_mol);   // this will create a system containing sc.no_mol water molecules
     std::ofstream file(sc.filename); // open file
 
