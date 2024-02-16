@@ -116,7 +116,7 @@ public:
 /* system class */
 class System {
 public:
-    Molecules molecules; // The molecules in the system. Changed from seq.
+    std::vector<Molecules> molecule_groups; // The molecules in the system. Changed from seq.
     double time = 0;     // current simulation time
 };
 
@@ -124,6 +124,7 @@ class Sim_Configuration {
 public:
     int steps = 10000;     // number of steps
     int no_mol = 4;        // number of molecules
+    int group_size = 8;			   // number of molecules in a group
     double dt = 0.0005;    // integrator time step
     int data_period = 100; // how often to save coordinate to trajectory
     std::string filename = "trajectory.txt";   // name of the output file with trajectory
@@ -149,7 +150,9 @@ public:
                 dt = std::stof(argument[i+1]);
             } else if(arg=="-ofile"){
                 filename = argument[i+1];
-            } else{
+            } else if(arg==""){
+		group_size = std::stoi(argument[i+1]);
+	    } else{
                 std::cout << "---> error: the argument type is not recognized \n";
             }
         }
@@ -160,8 +163,8 @@ public:
 
 // Given a bond, updates the force on all atoms correspondingly
 void UpdateBondForces(System& sys){
-    Molecules& molecules = sys.molecules;
     // Loops over the (2 for water) bond constraints
+    for (auto& molecules : sys.molecule_groups)
     for (Bond& bond : molecules.bonds){
         auto& atoms1=molecules.atoms[bond.a1];
         auto& atoms2=molecules.atoms[bond.a2];
@@ -181,7 +184,7 @@ void UpdateBondForces(System& sys){
 // Iterates over all bonds in molecules (for water only 2: the left and right)
 // And updates forces on atoms correpondingly
 void UpdateAngleForces(System& sys){
-    Molecules& molecules = sys.molecules;
+    for (auto& molecules : sys.molecule_groups){
     for (Angle& angles : molecules.angles){
         //====  angle forces  (H--O---H bonds) U_angle = 0.5*k_a(phi-phi_0)^2
         //f_H1 =  K(phi-ph0)/|H1O|*Ta
@@ -224,6 +227,7 @@ void UpdateAngleForces(System& sys){
             accumulated_forces_angle += f1.mag() + f3.mag();
         }
     }
+    }
 }
 
 // Iterates over all atoms in both molecules
@@ -232,20 +236,22 @@ void UpdateNonBondedForces(System& sys){
     /* nonbonded forces: only a force between atoms in different molecules
        The total non-bonded forces come from Lennard Jones (LJ) and coulomb interactions
        U = ep[(sigma/r)^12-(sigma/r)^6] + C*q1*q2/r */
-    for (auto& atoms1 : sys.molecules.atoms)
-    for (auto& atoms2 : sys.molecules.atoms){
+    for (auto& molecules1 : sys.molecule_groups)
+    for (auto& molecules2 : sys.molecule_groups)
+    for (auto& atoms1 : molecules1.atoms)
+    for (auto& atoms2 : molecules2.atoms){
             double ep = sqrt(atoms1.ep*atoms2.ep); // ep = sqrt(ep1*ep2)
             double sigma = 0.5*(atoms1.sigma+atoms2.sigma);  // sigma = (sigma1+sigma2)/2
 	    double sigma2 = sigma*sigma;
             double q1q2 = atoms1.charge*atoms2.charge;
 
             double KC = 80*0.7;          // Coulomb prefactor
-		for (int i = 0; i< sys.molecules.no_mol; i++){ // Note, this way of counting, while better for cache
+		for (int i = 0; i< molecules1.no_mol; i++){ // Note, this way of counting, while better for cache
 							  // use might lead to floating point errors
 		Vec3 af = {0,0,0};
 		#pragma omp declare reduction(+:Vec3:omp_out += omp_in) initializer(omp_priv = omp_orig)
 		#pragma omp simd reduction(+:accumulated_forces_non_bond,af)
-		for (int j = i+1; j<sys.molecules.no_mol; j++){
+		for (int j = i+1; j<molecules2.no_mol; j++){
 			Vec3 p1 = {atoms1.px[i],atoms1.py[i],atoms1.pz[i]};
 			Vec3 p2 = {atoms2.px[j],atoms2.py[j],atoms2.pz[j]};
             		Vec3 dp = p1-p2;
@@ -270,7 +276,7 @@ void Evolve(System &sys, Sim_Configuration &sc){
 
     // Kick velocities and zero forces for next update
     // Drift positions: Loop over molecules and atoms inside the molecules
-    Molecules& molecules = sys.molecules;
+    for (auto& molecules : sys.molecule_groups){
     for (auto& atoms : molecules.atoms){ 		// Loop over all the different types of atoms O, H1, H2
         for (int i=0; i<molecules.no_mol; i++){
 	    Vec3 p = {atoms.px[i],atoms.py[i],atoms.pz[i]}; // Load position into a vector
@@ -279,6 +285,7 @@ void Evolve(System &sys, Sim_Configuration &sc){
             p += sc.dt* atoms.v[i];             // update position
 	    atoms.px[i] = p.x; atoms.py[i] = p.y; atoms.pz[i] = p.z;
         }
+    }
     }
 
     // Update the forces on each particle based on the particles positions
@@ -292,7 +299,7 @@ void Evolve(System &sys, Sim_Configuration &sc){
 }
 
 // Setup one water molecule
-System MakeWater(int N_molecules){
+System MakeWater(int N_molecules,int group_size){
     //===========================================================
     // creating water molecules at position X0,Y0,Z0. 3 atoms
     //                        H---O---H
@@ -303,10 +310,6 @@ System MakeWater(int N_molecules){
     const double L0 = 0.09584;
     const double angle = 104.45*deg2rad;    
 
-    //         mass    ep    sigma charge name
-    Atoms Oatoms(16, 0.65,    0.31, -0.82, "O", N_molecules);  // Oxygen atom
-    Atoms Hatoms1( 1, 0.18828, 0.238, 0.41, "H", N_molecules); // Hydrogen atom
-    Atoms Hatoms2( 1, 0.18828, 0.238, 0.41, "H", N_molecules); // Hydrogen atom
 
     // bonds beetween first H-O and second H-O respectively
     std::vector<Bond> waterbonds = {
@@ -320,16 +323,38 @@ System MakeWater(int N_molecules){
     };   
 
     System sys;
-    for (int i = 0; i < N_molecules; i++){
-        Vec3 P0{sin(2*M_PI/N_molecules*i), cos(2*M_PI/N_molecules*i), 2.0*i/N_molecules}; //Spiral configuration
-        Oatoms.px[i]  = P0.x; Oatoms.py[i] = P0.y; Oatoms.pz[i] = P0.z;
-	Hatoms1.px[i] = P0.x+L0*sin(angle/2); Hatoms1.py[i] = P0.y+L0*cos(angle/2); Hatoms1.pz[i] = P0.z;
-	Hatoms2.px[i] = P0.x-L0*sin(angle/2); Hatoms2.py[i] = P0.y+L0*cos(angle/2); Hatoms2.pz[i] = P0.z;
+    int no_groups = N_molecules/group_size;
+    int rem = N_molecules%group_size;
+    if (rem != 0){
+	no_groups += 1;
     }
+    sys.molecule_groups = std::vector<Molecules>(no_groups);
+    for (int i = 0; i < no_groups; i++){
+	int no_molecules_in_group;
+	    if (i == no_groups-1 && rem != 0){
+		    no_molecules_in_group = rem;
+	    } else {
+		    no_molecules_in_group = group_size;
+	    }
+    	//         mass    ep    sigma charge name
+    	Atoms Oatoms(16, 0.65,    0.31, -0.82, "O", no_molecules_in_group);  // Oxygen atom
+    	Atoms Hatoms1( 1, 0.18828, 0.238, 0.41, "H", no_molecules_in_group); // Hydrogen atom
+    	Atoms Hatoms2( 1, 0.18828, 0.238, 0.41, "H", no_molecules_in_group); // Hydrogen atom
+    	for (int j = 0; j < no_molecules_in_group; j++){
+        	Vec3 P0{sin(2*M_PI/no_molecules_in_group*(j+i)), //TODO Find better initial position
+			cos(2*M_PI/no_molecules_in_group*(j+i)), 
+			2.0*j/no_molecules_in_group}; //Spiral configuration
+        	Oatoms.px[j]  = P0.x; Oatoms.py[j] = P0.y; Oatoms.pz[j] = P0.z;
+		Hatoms1.px[j] = P0.x+L0*sin(angle/2); Hatoms1.py[j] = P0.y+L0*cos(angle/2); Hatoms1.pz[j] = P0.z;
+		Hatoms2.px[j] = P0.x-L0*sin(angle/2); Hatoms2.py[j] = P0.y+L0*cos(angle/2); Hatoms2.pz[j] = P0.z;
+    	}
         std::vector<Atoms> atoms {Oatoms, Hatoms1, Hatoms2};
-        sys.molecules ={atoms, waterbonds, waterangles, N_molecules};
+        sys.molecule_groups[i].atoms = atoms;
+	sys.molecule_groups[i].angles = waterangles;
+	sys.molecule_groups[i].bonds = waterbonds;
+	sys.molecule_groups[i].no_mol =no_molecules_in_group; //sys.molecule_groups[i] = {atoms, waterbonds, waterangles, no_molecules_in_group};
         // Above we are passing an extra argument to sys.molecules, compared to seq.
-    
+    } 
     
     // Store atoms, bonds and angles in Water class and return
     return sys;
@@ -338,8 +363,10 @@ System MakeWater(int N_molecules){
 // Write the system configurations in the trajectory file.
 void WriteOutput(System& sys, std::ofstream& file){  
     // Loop over all atoms in model one molecule at a time and write out position
-
-    Molecules& molecules = sys.molecules; // First make an alias for the molecules in the system
+    
+    std::vector<Molecules>& molecule_groups = sys.molecule_groups; // First make an alias for the molecules in the system
+								   //
+    for (auto& molecules : molecule_groups){
     for (auto& atoms : molecules.atoms){ //Loop over all the different types of atoms
         for (int i = 0; i<molecules.no_mol; i++){ //Write the position of each different atom, that is the same type.
             file << sys.time << " " << atoms.name << " " 
@@ -347,6 +374,7 @@ void WriteOutput(System& sys, std::ofstream& file){
                 << atoms.py[i] << " " 
                 << atoms.pz[i] << '\n';
         }
+    }
     }
 }
 
@@ -356,7 +384,7 @@ void WriteOutput(System& sys, std::ofstream& file){
 int main(int argc, char* argv[]){
     Sim_Configuration sc({argv, argv+argc}); // Load the system configuration from command line data
     
-    System sys  = MakeWater(sc.no_mol);   // this will create a system containing sc.no_mol water molecules
+    System sys  = MakeWater(sc.no_mol,sc.group_size);   // this will create a system containing sc.no_mol water molecules
     std::ofstream file(sc.filename); // open file
 
     WriteOutput(sys, file);    // writing the initial configuration in the trajectory file
