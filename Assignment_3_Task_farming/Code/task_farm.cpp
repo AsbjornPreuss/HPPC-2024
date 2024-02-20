@@ -31,6 +31,15 @@ void master (int nworker) {
     for (int& t : task) {
         t = distribution(engine);   // set up some "tasks"
     }
+    std::cout << "Master  : Initialized\n";
+    // master(nrank-1); // there is nrank-1 worker processes
+    MPI_Send(&task, 1, MPI_INT, 1, 1,
+                MPI_COMM_WORLD);
+    std::cout << "Master  : Task sent to worker "<< 1 <<"\n";
+    MPI_Recv(&task, 1, MPI_INT, 1, 1,
+                MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    std::cout << "Master  : Task finished and received\n";
+
 
     /*
     IMPLEMENT HERE THE CODE FOR THE MASTER
@@ -47,7 +56,7 @@ void master (int nworker) {
             tasksdone++;
             workdone += task[itask];
         }
-        std::cout << "Master: Worker " << worker << " solved " << tasksdone << 
+        std::cout << "Master  : Worker " << worker << " solved " << tasksdone << 
                     " tasks\n";    
     }
 }
@@ -58,23 +67,33 @@ void task_function(int task) {
 }
 
 void worker (int rank) {
-    /*
-    IMPLEMENT HERE THE CODE FOR THE WORKER
-    Use a call to "task_function" to complete a task
-    */
+    int task; // The task must be declared. It is given in the MPI_Recv function.
+    int tag = rank; // This worker will only take the process allocated to it, in the tag line.
+    int master_rank = 0; // The master rank is 0 as a default.
+    std::cout << "Worker " << rank << ": Initialized and waiting for a task\n";
+    MPI_Recv(&task, 1, MPI_INT, master_rank, tag,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    std::cout << "Worker " << rank << ": Received an MPI message to sleep for " << task << " milliseconds\n";
+    task_function(task);
+    std::cout << "Worker " << rank << ": Completed task. Sending result back to master\n";
+    MPI_Send(&task, 1, MPI_INT, master_rank, tag,
+                    MPI_COMM_WORLD);
+    std::cout << "Worker "<< rank << ": Sent result from task "<< task << " back\n";
 }
 
 int main(int argc, char *argv[]) {
     int nrank, rank;
-
+    enum {i_am_master, i_am_worker};
     MPI_Init(&argc, &argv);                // set up MPI
     MPI_Comm_size(MPI_COMM_WORLD, &nrank); // get the total number of ranks
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);  // get the rank of this process
 
-    if (rank == 0)       // rank 0 is the master
-        master(nrank-1); // there is nrank-1 worker processes
-    else                 // ranks in [1:nrank] are workers
+    if (rank == i_am_master){      // rank 0 is the master
+        master(nrank);
+    }
+    else{                 // ranks in [1:nrank] are workers
         worker(rank);
+    }
 
     MPI_Finalize();      // shutdown MPI
 }
