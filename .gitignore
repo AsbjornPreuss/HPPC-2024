@@ -337,3 +337,4 @@ TSWLatexianTemp*
 *sir
 
 .vscode/settings.json
+*.ipynb_checkpoints/
