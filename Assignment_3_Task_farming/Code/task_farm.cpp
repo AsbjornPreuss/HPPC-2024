@@ -15,12 +15,10 @@
 // To run an MPI program we always need to include the MPI headers
 #include <mpi.h>
 
-const int NTASKS=300;  // number of tasks
+const int NTASKS=3000;  // number of tasks
 const int RANDOM_SEED=12345;
 
 void master (int nworkers) {
-    
-    
     // Initialize task, result and worker queue array
     std::array<int, NTASKS> tasks, result;
     // set up a random number generator
@@ -40,51 +38,48 @@ void master (int nworkers) {
     //===============================================================================
     std::cout << "Master  : Initialized\n";
     // Initialize vectors for keeping track of things
-    std::vector<int> worker_queue(nworkers), tasks_in_process, workers_in_process;
-    for (int i=0; i < nworkers; i++){
-        worker_queue[i] = i +1;
-        std::cout << "Master   : Worker queue[" << i << "] is " << worker_queue[i] << "\n";
-    }
+    std::vector<int> task_at_worker(nworkers);
     // Initialize variables used later.
     int tag = 1;
     int destination;
-    int source;
     //MPI_Request IRreq; // Only used for non-blocking mpi messages
     // Now we complete all the tasks.
-    for (int task=0; task< NTASKS;) {
+
+    int task = 0;
+
+    // Init tasks to all workers
+    for (int worker = 0; worker < nworkers; worker++){
         std::cout <<"Master  : Working on task " << task <<"\n";
-
-        // Send out tasks to all workers
-        int n_tasks_to_send = worker_queue.size();
-        for (int worker = 0; worker < n_tasks_to_send; worker++){
-            tag = 1;
-            destination = worker + 1;
-            MPI_Send(&tasks[task], 1, MPI_INT,  destination, tag,
-                MPI_COMM_WORLD); // Send the task to the worker queue
-            tasks_in_process.push_back(task);
-            workers_in_process.push_back(destination);
-            // Remove the worker after having sent a message to it
-            worker_queue.erase(worker_queue.begin());
-            task++;
-        }
-
-        // Receive tasks from each worker
-        int n_tasks_to_receive = tasks_in_process.size();
-        for (int worker = 0; worker < n_tasks_to_receive; worker++){
-            source = workers_in_process[0];     // The source we are receiving from is 
-                                                // the first in the workers_in_process vector
-            MPI_Recv(&result[tasks_in_process[0]], 1, MPI_INT,  source, tag,
-                        MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // Put the worker back in the worker queue.
-            worker_queue.push_back(workers_in_process[0]);
-            tasks_in_process.erase(tasks_in_process.begin());
-            workers_in_process.erase(workers_in_process.begin());
-        }
+        tag = 1;
+        destination = worker + 1;
+        MPI_Send(&tasks[task], 1, MPI_INT,  destination, tag,
+            MPI_COMM_WORLD); // Send the task to the worker queue
+        task_at_worker[worker] = task;
+	task++;
     }
+
+    // Receive tasks from any worker
+    int finished_worker_rank;
+    int finished_worker;
+    while (task<NTASKS){
+        MPI_Recv(&finished_worker_rank, 1, MPI_INT,  MPI_ANY_SOURCE, tag,
+                    MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	finished_worker = finished_worker_rank-1;
+	result[task_at_worker[finished_worker]] = finished_worker_rank;
+        // Give worker new task.
+	task_at_worker[finished_worker] = task;
+        MPI_Send(&tasks[task], 1, MPI_INT, finished_worker_rank, tag,
+            MPI_COMM_WORLD);
+	task++;
+    }
+     
     // Now shut down the workers, once all tasks are done
     int shut_down_data = -1;
     for (int worker=0; worker < nworkers; worker++){
-        MPI_Send(&shut_down_data, 1, MPI_INT,  worker + 1, tag,
+	finished_worker_rank = worker +1;
+	MPI_Recv(&result[task_at_worker[worker]], 1, MPI_INT, finished_worker_rank,
+		       tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);	
+        MPI_Send(&shut_down_data, 1, MPI_INT,  finished_worker_rank, tag,
                 MPI_COMM_WORLD); 
     }
     //===============================================================================
