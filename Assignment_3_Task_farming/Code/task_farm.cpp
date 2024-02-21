@@ -48,7 +48,7 @@ void master (int nworkers) {
         t = distribution(engine);   // set up some "tasks"
         
     }
-    for (int task=0; task< NTASKS; task++) {
+    for (int task=0; task< NTASKS) {
         std::cout <<"Master  : Working on task " << task <<"\n";
         // Send out tasks to all workers
         for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
@@ -60,6 +60,7 @@ void master (int nworkers) {
             workers_in_process.push_back(destination);
             // Remove the worker after having sent a message to it
             worker_queue.erase(worker_queue.begin());
+            task++;
         }
         // Receive tasks from each worker
         for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
