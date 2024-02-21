@@ -64,11 +64,12 @@ void master (int nworkers) {
         }
         // Receive tasks from each worker
         for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
-            source = workers_in_process[worker];
-            MPI_Recv(&result[tasks_in_process[worker]], 1, MPI_INT,  source, tag,
+            source = workers_in_process[0];     // The source we are receiving from is 
+                                                // the first in the workers_in_process vector
+            MPI_Recv(&result[tasks_in_process[0]], 1, MPI_INT,  source, tag,
                         MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             // Put the worker back in the worker queue.
-            worker_queue.push_back(result[task]);
+            worker_queue.push_back(workers_in_process[0]);
             tasks_in_process.erase(tasks_in_process.begin());
             workers_in_process.erase(workers_in_process.begin());
         }
