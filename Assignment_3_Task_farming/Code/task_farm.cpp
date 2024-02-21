@@ -19,23 +19,10 @@ const int NTASKS=300;  // number of tasks
 const int RANDOM_SEED=12345;
 
 void master (int nworkers) {
-    std::cout << "Master  : Initialized\n";
+    
     
     // Initialize task, result and worker queue array
     std::array<int, NTASKS> tasks, result;
-
-    std::vector<int> worker_queue(nworkers), tasks_in_process, workers_in_process;
-    for (int i=0; i < nworkers; i++){
-        worker_queue[i] = i +1;
-        std::cout << "Master   : Worker queue[" << i << "] is " << worker_queue[i] << "\n";
-    }
-    // An iterator for removing the worker which has just had a message sent to it.
-    std::vector<int>::iterator position_in_vector;
-
-    int tag = 1;
-    int destination;
-    int source;
-    //MPI_Request IRreq; // Only used for non-blocking mpi messages
     // set up a random number generator
     std::random_device rd;
     //std::default_random_engine engine(rd());
@@ -45,11 +32,28 @@ void master (int nworkers) {
     std::uniform_int_distribution<int> distribution(0, 30);
 
     for (int& t : tasks) {
-        t = distribution(engine);   // set up some "tasks"
-        
+        t = distribution(engine);   // set up some "tasks"   
     }
+
+    //===============================================================================
+    //                  OUR CODE STARTS HERE
+    //===============================================================================
+    std::cout << "Master  : Initialized\n";
+    // Initialize vectors for keeping track of things
+    std::vector<int> worker_queue(nworkers), tasks_in_process, workers_in_process;
+    for (int i=0; i < nworkers; i++){
+        worker_queue[i] = i +1;
+        std::cout << "Master   : Worker queue[" << i << "] is " << worker_queue[i] << "\n";
+    }
+    // Initialize variables used later.
+    int tag = 1;
+    int destination;
+    int source;
+    //MPI_Request IRreq; // Only used for non-blocking mpi messages
+    // Now we complete all the tasks.
     for (int task=0; task< NTASKS;) {
         std::cout <<"Master  : Working on task " << task <<"\n";
+
         // Send out tasks to all workers
         for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
             tag = 1;
@@ -62,6 +66,7 @@ void master (int nworkers) {
             worker_queue.erase(worker_queue.begin());
             task++;
         }
+
         // Receive tasks from each worker
         for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
             source = workers_in_process[0];     // The source we are receiving from is 
@@ -80,6 +85,9 @@ void master (int nworkers) {
         MPI_Send(&shut_down_data, 1, MPI_INT,  worker + 1, tag,
                 MPI_COMM_WORLD); 
     }
+    //===============================================================================
+    //                        OUR CODE ENDS HERE
+    //===============================================================================
 
     // Print out a status on how many tasks were completed by each worker
     for (int worker=0; worker<nworkers; worker++) {
@@ -100,6 +108,9 @@ void task_function(int task) {
 }
 
 void worker (int rank) {
+    //===============================================================================
+    //                  OUR CODE STARTS HERE
+    //===============================================================================
     int task = 1;           // The task must be declared. It is given in the MPI_Recv function.
     int tag = rank;         // This worker will only take the process allocated to it, in the tag line.
     int master_rank = 0;    // The master rank is 0 as a default.
@@ -114,6 +125,9 @@ void worker (int rank) {
                         MPI_COMM_WORLD);
         //std::cout << "Worker "<< rank << ": Sent result from task "<< task << " back\n";
     }
+    //===============================================================================
+    //                        OUR CODE ENDS HERE
+    //===============================================================================
 }
 
 int main(int argc, char *argv[]) {
