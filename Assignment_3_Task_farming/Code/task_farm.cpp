@@ -55,7 +55,8 @@ void master (int nworkers) {
         std::cout <<"Master  : Working on task " << task <<"\n";
 
         // Send out tasks to all workers
-        for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
+        int n_tasks_to_send = worker_queue.size();
+        for (long unsigned int worker = 0; worker < n_tasks_to_send; worker++){
             tag = 1;
             destination = worker + 1;
             MPI_Send(&tasks[task], 1, MPI_INT,  destination, tag,
@@ -68,7 +69,8 @@ void master (int nworkers) {
         }
 
         // Receive tasks from each worker
-        for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
+        int n_tasks_to_receive = tasks_in_process.size()
+        for (long unsigned int worker = 0; worker < n_tasks_to_receive; worker++){
             source = workers_in_process[0];     // The source we are receiving from is 
                                                 // the first in the workers_in_process vector
             MPI_Recv(&result[tasks_in_process[0]], 1, MPI_INT,  source, tag,
