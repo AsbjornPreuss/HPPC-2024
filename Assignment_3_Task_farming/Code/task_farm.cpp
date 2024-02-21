@@ -58,8 +58,8 @@ void master (int nworkers) {
             // Remove the worker after having sent a message to it
             worker_queue.erase(worker_position);
         }
-        // Receive all tasks that have been sent out
-        for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
+        // Receive tasks from each worker 
+        for (int worker = 0; worker < nworkers; worker++){
             source = worker + 1;
             MPI_Recv(&result[task], 1, MPI_INT,  source, tag,
                         MPI_COMM_WORLD, MPI_STATUS_IGNORE);
