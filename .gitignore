@@ -1,3 +1,12 @@
+# Ignore all
+
+*
+
+# Unignore all with an extension
+
+!*.
+
+
 # Prerequisites
 *.d
 
@@ -38,7 +47,7 @@
 # these rules might exclude image files for figures etc.
 # *.ps
 # *.eps
-# *.pdf
+*.pdf
 
 ## Generated if empty string is given at "Please type another file name for output:"
 .pdf
