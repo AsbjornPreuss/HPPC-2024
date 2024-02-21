@@ -48,7 +48,7 @@ void master (int nworkers) {
         t = distribution(engine);   // set up some "tasks"
         
     }
-    for (int task=0; task< NTASKS) {
+    for (int task=0; task< NTASKS;) {
         std::cout <<"Master  : Working on task " << task <<"\n";
         // Send out tasks to all workers
         for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
