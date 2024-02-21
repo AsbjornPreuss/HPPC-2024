@@ -56,7 +56,7 @@ void master (int nworkers) {
 
         // Send out tasks to all workers
         int n_tasks_to_send = worker_queue.size();
-        for (long unsigned int worker = 0; worker < n_tasks_to_send; worker++){
+        for (int worker = 0; worker < n_tasks_to_send; worker++){
             tag = 1;
             destination = worker + 1;
             MPI_Send(&tasks[task], 1, MPI_INT,  destination, tag,
@@ -69,8 +69,8 @@ void master (int nworkers) {
         }
 
         // Receive tasks from each worker
-        int n_tasks_to_receive = tasks_in_process.size()
-        for (long unsigned int worker = 0; worker < n_tasks_to_receive; worker++){
+        int n_tasks_to_receive = tasks_in_process.size();
+        for (int worker = 0; worker < n_tasks_to_receive; worker++){
             source = workers_in_process[0];     // The source we are receiving from is 
                                                 // the first in the workers_in_process vector
             MPI_Recv(&result[tasks_in_process[0]], 1, MPI_INT,  source, tag,
@@ -114,7 +114,7 @@ void worker (int rank) {
     //                  OUR CODE STARTS HERE
     //===============================================================================
     int task = 1;           // The task must be declared. It is given in the MPI_Recv function.
-    int tag = rank;         // This worker will only take the process allocated to it, in the tag line.
+    int tag = 1;         // This worker will only take the process allocated to it, in the tag line.
     int master_rank = 0;    // The master rank is 0 as a default.
     while (task >= 0){
         //std::cout << "Worker " << rank << ": Initialized and waiting for a task\n";
