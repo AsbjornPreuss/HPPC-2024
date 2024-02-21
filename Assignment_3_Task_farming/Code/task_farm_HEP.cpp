@@ -20,7 +20,7 @@
 // Number of cuts to try out for each event channel.
 // BEWARE! Generates n_cuts^8 permutations to analyse.
 // If you run many workers, you may want to increase from 3.
-const int n_cuts = 3;
+const int n_cuts = 5;
 const long n_settings = (long) pow(n_cuts,8);
 const long NO_MORE_TASKS = n_settings+1;
 const bool verbose = false;
@@ -228,17 +228,21 @@ void master (int nworkers, Data& ds) {
             idx_best = k;
         }
     
-    std::cout << "Best accuracy obtained :" << best_accuracy_score << "\n";
-    std::cout << "Final cuts :\n";
-    for (int i=0; i<8; i++)
-        std::cout << std::setw(30) << ds.name[i] << " : " << settings[idx_best][i]*ds.flip[i] << "\n";
+    //std::cout << "Best accuracy obtained :" << best_accuracy_score << "\n";
+    //std::cout << "Final cuts :\n";
+    //for (int i=0; i<8; i++)
+        //std::cout << std::setw(30) << ds.name[i] << " : " << settings[idx_best][i]*ds.flip[i] << "\n";
     
-    std::cout <<  "\n";
-    std::cout <<  "Number of settings:" << std::setw(9) << n_settings << "\n";
-    std::cout <<  "Elapsed time      :" << std::setw(9) << std::setprecision(4)
-              << (tend - tstart).count()*1e-9 << "\n";
-    std::cout <<  "task time [mus]   :" << std::setw(9) << std::setprecision(4)
-              << (tend - tstart).count()*1e-3 / n_settings << "\n";
+    //std::cout <<  "\n";
+    //std::cout <<  "Number of settings:" << std::setw(9) << n_settings << "\n";
+    //std::cout <<  "Elapsed time      :" << std::setw(9) << std::setprecision(4)
+    //          << (tend - tstart).count()*1e-9 << "\n";
+    //std::cout <<  "task time [mus]   :" << std::setw(9) << std::setprecision(4)
+    //          << (tend - tstart).count()*1e-3 / n_settings << "\n";
+    std::cout << best_accuracy_score << " ";
+    for (int i=0; i<8; i++)
+        std::cout << settings[idx_best][i]*ds.flip[i] << " ";
+    std::cout << n_settings << " " << (tend-tstart).count()*1e-9 << " " << (tend - tstart).count()*1e-3 / n_settings << " " << nworkers +1 << "\n";
 }
 
 void worker (int rank, Data& ds) {
