@@ -61,7 +61,7 @@ void master (int nworkers) {
             // Remove the worker after having sent a message to it
             worker_queue.erase(worker_queue.begin());
         }
-        // Receive tasks from each worker 
+        // Receive tasks from each worker
         for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
             source = workers_in_process[worker];
             MPI_Recv(&result[tasks_in_process[worker]], 1, MPI_INT,  source, tag,
@@ -98,9 +98,9 @@ void task_function(int task) {
 }
 
 void worker (int rank) {
-    int task = 1; // The task must be declared. It is given in the MPI_Recv function.
-    int tag = rank; // This worker will only take the process allocated to it, in the tag line.
-    int master_rank = 0; // The master rank is 0 as a default.
+    int task = 1;           // The task must be declared. It is given in the MPI_Recv function.
+    int tag = rank;         // This worker will only take the process allocated to it, in the tag line.
+    int master_rank = 0;    // The master rank is 0 as a default.
     while (task >= 0){
         //std::cout << "Worker " << rank << ": Initialized and waiting for a task\n";
         MPI_Recv(&task, 1, MPI_INT, master_rank, tag,
@@ -121,12 +121,12 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &nrank); // get the total number of ranks
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);  // get the rank of this process
 
-    if (rank == i_am_master){      // rank 0 is the master
-        master(nrank-1); // There is nrank-1 workers
+    if (rank == i_am_master){              // rank 0 is the master
+        master(nrank-1);                   // There is nrank-1 workers
     }
-    else{                 // ranks in [1:nrank] are workers
+    else{                                  // ranks in [1:nrank] are workers
         worker(rank);
     }
 
-    MPI_Finalize();      // shutdown MPI
+    MPI_Finalize();                        // shutdown MPI
 }
