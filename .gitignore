@@ -1,11 +1,9 @@
 # Ignore all
-
 *
 
 # Unignore all with an extension
-
 !*.
-
+!*/
 
 # Prerequisites
 *.d
