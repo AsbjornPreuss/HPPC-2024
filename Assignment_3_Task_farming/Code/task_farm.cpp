@@ -15,7 +15,7 @@
 // To run an MPI program we always need to include the MPI headers
 #include <mpi.h>
 
-const int NTASKS=100;  // number of tasks
+const int NTASKS=300;  // number of tasks
 const int RANDOM_SEED=12345;
 
 void master (int nworkers) {
@@ -24,17 +24,18 @@ void master (int nworkers) {
     // Initialize task, result and worker queue array
     std::array<int, NTASKS> tasks, result;
 
-    std::vector<int> worker_queue(nworkers);
+    std::vector<int> worker_queue(nworkers), tasks_in_process, workers_in_process;
     for (int i=0; i < nworkers; i++){
         worker_queue[i] = i +1;
-        std::cout << "Worker queue[" << i << "] is " << worker_queue[i] << "\n";
+        std::cout << "Master   : Worker queue[" << i << "] is " << worker_queue[i] << "\n";
     }
     // An iterator for removing the worker which has just had a message sent to it.
-    std::vector<int>::iterator worker_position = worker_queue.begin();
+    std::vector<int>::iterator position_in_vector;
 
     int tag = 1;
     int destination;
     int source;
+    //MPI_Request IRreq; // Only used for non-blocking mpi messages
     // set up a random number generator
     std::random_device rd;
     //std::default_random_engine engine(rd());
@@ -48,38 +49,35 @@ void master (int nworkers) {
         
     }
     for (int task=0; task< NTASKS; task++) {
-        std::cout <<"Working on task " << task <<"\n";
+        std::cout <<"Master  : Working on task " << task <<"\n";
         // Send out tasks to all workers
         for (long unsigned int worker = 0; worker < worker_queue.size(); worker++){
             tag = 1;
             destination = worker + 1;
             MPI_Send(&tasks[task], 1, MPI_INT,  destination, tag,
                 MPI_COMM_WORLD); // Send the task to the worker queue
+            tasks_in_process.push_back(task);
+            workers_in_process.push_back(destination);
             // Remove the worker after having sent a message to it
-            worker_queue.erase(worker_position);
+            worker_queue.erase(worker_queue.begin());
         }
         // Receive tasks from each worker 
-        for (int worker = 0; worker < nworkers; worker++){
-            source = worker + 1;
-            MPI_Recv(&result[task], 1, MPI_INT,  source, tag,
+        for (long unsigned int worker = 0; worker < tasks_in_process.size(); worker++){
+            source = workers_in_process[worker];
+            MPI_Recv(&result[tasks_in_process[worker]], 1, MPI_INT,  source, tag,
                         MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             // Put the worker back in the worker queue.
             worker_queue.push_back(result[task]);
+            tasks_in_process.erase(tasks_in_process.begin());
+            workers_in_process.erase(workers_in_process.begin());
         }
     }
     // Now shut down the workers, once all tasks are done
     int shut_down_data = -1;
-    MPI_Send(&shut_down_data, 1, MPI_INT,  1, tag,
-            MPI_COMM_WORLD); 
-
-
-
-    /*
-    IMPLEMENT HERE THE CODE FOR THE MASTER
-    ARRAY task contains tasks to be done. Send one element at a time to workers
-    ARRAY result should at completion contain the ranks of the workers that did
-    the corresponding tasks
-    */
+    for (int worker=0; worker < nworkers; worker++){
+        MPI_Send(&shut_down_data, 1, MPI_INT,  worker + 1, tag,
+                MPI_COMM_WORLD); 
+    }
 
     // Print out a status on how many tasks were completed by each worker
     for (int worker=0; worker<nworkers; worker++) {
