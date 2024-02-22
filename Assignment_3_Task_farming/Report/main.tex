@@ -45,6 +45,20 @@ Only blocking messages are used in this implementation of a simple master-worker
 The high energy physics code was restructured to allow for running the data reduction on multiple cores. The ideas from above was reused, with renaming of several variables, and other small changes, that integrated the previous solution into the HEP code. The code can be seen in section \ref{sec: task farm hep source}. Our master routine is defined on lines $153-209$, and the worker routine is defined on lines $249-272$. 
 
 \section{Task 3: Strong scaling of HEP processing using SLURM}
+\begin{figure}
+    \centering
+    \includegraphics{Assignment_3_Task_farming/Report/Amdahl.pdf}
+    \caption{Strong scaling plots for $n_{cut}=4$ and $n_{cut}=5$, including fits to Amdahls law}
+    \label{fig:Amdahl}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics{Assignment_3_Task_farming/Report/Time_scaling.pdf}
+    \caption{Total run time and time per task as functions of number of processors for $n_{cut}=4$ and $n_{cut}=5$}
+    \label{fig:Time}
+\end{figure}
+
 \subsection{subtask A - Experimental results}
 
 
