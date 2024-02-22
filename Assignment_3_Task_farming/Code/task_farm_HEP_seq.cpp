@@ -20,7 +20,7 @@
 // Number of cuts to try out for each event channel.
 // BEWARE! Generates n_cuts^8 permutations to analyse.
 // If you run many workers, you may want to increase from 3.
-const int n_cuts = 3;
+const int n_cuts = 5;
 const long n_settings = (long) pow(n_cuts,8);
 const long NO_MORE_TASKS = n_settings+1;
 

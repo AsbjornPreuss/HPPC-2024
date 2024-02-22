@@ -18,7 +18,7 @@ task_farm_HEP: task_farm_HEP.cpp
 	$(CXX) task_farm_HEP.cpp $(CXXFLAGS) -o task_farm_HEP
 
 task_farm_HEP_seq: task_farm_HEP_seq.cpp
-	$(CXX) task_farm_HEP_seq.cpp $(CXXFLAGS) -o task_farm_HEP_seq
+	$(CXX) task_farm_HEP_seq.cpp $(CXXFLAGS) -o task_farm_HEP_seq_5
 
 clean:
 	rm -f task_farm task_farm_HEP task_farm_HEP_seq
