@@ -21,14 +21,14 @@ breaklines=true,
 breakatwhitespace=true,
 numbers=left
 }
-\title{Assignment \#2}
+\title{Assignment \#3}
 \author{Asbjørn Bonefeld Preuss,\\ Daniel Lomholt Christensen,\\ Elie Cueto}
 \date{February 2024}
 \setlength{\textheight}{1.05\textheight}
 \begin{document}
 \maketitle
 \section{Task 1: Write a functioning master-worker program}
-A simple program was written which implements a master worker program using OpenMPI. This code can be seen in section \ref{sec: task farm source}. 
+A simple program was written which implements a master worker program using OpenMPI. This code can be seen in section \ref{sec: task farm source}. Our master routine is defined on lines $36-87$, and the worker routine is defined on lines $108-127$. 
 
 The master in this program makes a list of the tasks that are currently being processed by workers. This list is then initially filled, as tasks are sent out to all workers available.
 
@@ -42,7 +42,7 @@ The worker therefore just receives a message, performs its task, and sends it ba
 Only blocking messages are used in this implementation of a simple master-worker program.
 
 \section{Task 2: Master-worker program for HEP data processing} 
-The high energy physics code was restructured to allow for running the data reduction on multiple cores. The ideas from above was reused, with renaming of several variables, and other small changes, that integrated the previous solution into the HEP code. The code can be seen in section \ref{sec: task farm hep source}.
+The high energy physics code was restructured to allow for running the data reduction on multiple cores. The ideas from above was reused, with renaming of several variables, and other small changes, that integrated the previous solution into the HEP code. The code can be seen in section \ref{sec: task farm hep source}. Our master routine is defined on lines $153-209$, and the worker routine is defined on lines $249-272$. 
 
 \section{Task 3: Strong scaling of HEP processing using SLURM}
 \subsection{subtask A - Experimental results}
