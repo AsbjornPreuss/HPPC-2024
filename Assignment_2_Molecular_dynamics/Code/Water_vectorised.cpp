@@ -345,7 +345,7 @@ System MakeWater(int N_molecules){
 
     System sys;
     for (int i = 0; i < N_molecules; i++){
-        Vec3 P0{sin(2*M_PI/N_molecules*i), cos(2*M_PI/N_molecules*i), 2.0*i/N_molecules}; //Spiral configuration
+        Vec3 P0{sin(2*M_PI/N_molecules*i), cos(2*M_PI/N_molecules*i), i*0.3}; //Spiral configuration
         Oatoms.px[i]  = P0.x; Oatoms.py[i] = P0.y; Oatoms.pz[i] = P0.z;
 	Hatoms1.px[i] = P0.x+L0*sin(angle/2); Hatoms1.py[i] = P0.y+L0*cos(angle/2); Hatoms1.pz[i] = P0.z;
 	Hatoms2.px[i] = P0.x-L0*sin(angle/2); Hatoms2.py[i] = P0.y+L0*cos(angle/2); Hatoms2.pz[i] = P0.z;
