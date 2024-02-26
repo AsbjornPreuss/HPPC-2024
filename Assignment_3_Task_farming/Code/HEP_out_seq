@@ -1,0 +1,42 @@
+Best accuracy obtained :0.736744
+Final cuts :
+averageInteractionsPerCrossing : 42.6024
+                        p_Rhad : 0.0466414
+                       p_Rhad1 : 0.0296093
+           p_TRTTrackOccupancy : 0.474643
+                p_topoetcone40 : 5.33589
+            p_eTileGap3Cluster : 0.332421
+                  p_phiModCalo : -1.20942e-06
+                  p_etaModCalo : 0.0125342
+
+Number of settings:    65536
+Elapsed time      :    173.2
+task time [mus]   :     2643
+Best accuracy obtained :0.736744
+Final cuts :
+averageInteractionsPerCrossing : 42.6024
+                        p_Rhad : 0.0466414
+                       p_Rhad1 : 0.0296093
+           p_TRTTrackOccupancy : 0.474643
+                p_topoetcone40 : 5.33589
+            p_eTileGap3Cluster : 0.332421
+                  p_phiModCalo : -1.20942e-06
+                  p_etaModCalo : 0.0125342
+
+Number of settings:    65536
+Elapsed time      :    173.5
+task time [mus]   :     2647
+Best accuracy obtained :0.736772
+Final cuts :
+averageInteractionsPerCrossing : 44.8089
+                        p_Rhad : 0.0386682
+                       p_Rhad1 : 0.024703
+           p_TRTTrackOccupancy : 0.47837
+                p_topoetcone40 : 5.56126
+            p_eTileGap3Cluster : 0.296749
+                  p_phiModCalo : -3.17348e-06
+                  p_etaModCalo : 0.0125392
+
+Number of settings:   390625
+Elapsed time      :     1033
+task time [mus]   :     2644

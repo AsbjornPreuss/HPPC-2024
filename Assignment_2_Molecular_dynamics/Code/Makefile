@@ -10,7 +10,7 @@ OPT=-O3 -ffast-math
 # Add profiling to code
 OPT=-O1 -pg -fopt-info-vec-optimized -fopt-info-vec-missed
 OPT=-O3 -ffast-math -fopt-info-vec-optimized -fopt-info-vec-missed
-OPT=-O3 -ffast-math -fopt-info-vec-optimized -mtune=native
+OPT=-O3 -ffast-math -fopt-info-vec-optimized -mprefer-vector-width=256
 
 # Faster compilation time
 #OPT=-O1
@@ -23,7 +23,7 @@ seq: Water_sequential.cpp
 	$(CXX) Water_sequential.cpp $(CXXFLAGS) -o seq
 
 vec: Water_vectorised.cpp
-	$(CXX) Water_vectorised.cpp $(CXXFLAGS) -fopenmp-simd -o vec
+	$(CXX) Water_vectorised.cpp $(CXXFLAGS) -march=znver1 -fopenmp-simd -o vec
 
 clean:
 	rm -fr seq vec

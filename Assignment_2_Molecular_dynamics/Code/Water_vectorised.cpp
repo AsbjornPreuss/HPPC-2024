@@ -325,9 +325,7 @@ System MakeWater(int N_molecules,int group_size){
     System sys;
     int no_groups = N_molecules/group_size;
     int rem = N_molecules%group_size;
-    if (rem != 0){
-	no_groups += 1;
-    }
+    if (rem != 0) no_groups += 1;
     sys.molecule_groups = std::vector<Molecules>(no_groups);
     for (int i = 0; i < no_groups; i++){
 	int no_molecules_in_group;

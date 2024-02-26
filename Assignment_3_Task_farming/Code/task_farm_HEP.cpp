@@ -13,17 +13,17 @@
 #include <thread>
 #include <array>
 #include <vector>
-
+#include <limits>
 // To run an MPI program we always need to include the MPI headers
 #include <mpi.h>
 
 // Number of cuts to try out for each event channel.
 // BEWARE! Generates n_cuts^8 permutations to analyse.
 // If you run many workers, you may want to increase from 3.
-const int n_cuts = 3;
+const int n_cuts = 5;
 const long n_settings = (long) pow(n_cuts,8);
 const long NO_MORE_TASKS = n_settings+1;
-
+const bool verbose = false;
 // Class to hold the main data set together with a bit of statistics
 class Data {
 public:
@@ -123,7 +123,7 @@ double task_function(std::array<double,8>& setting, Data& ds) {
     return acc / ds.nevents;
 }
 
-void master (int nworker, Data& ds) {
+void master (int nworkers, Data& ds) {
     std::array<std::array<double,8>,n_cuts> ranges; // ranges for cuts to explore
 
     // loop over different event channels and set up cuts
@@ -150,16 +150,70 @@ void master (int nworker, Data& ds) {
 
     auto tstart = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
 
-    // ================================================================
-    /*
-    IMPLEMENT HERE THE CODE FOR THE MASTER
-    The master should pass a set of settings to a worker, and the worker should return the accuracy
-    */
+//===============================================================================
+    //                  OUR CODE STARTS HERE
+    //===============================================================================
+    if (verbose) std::cout << "Master  : Initialized\n";
+    // Initialize vectors for keeping track of things
+    std::vector<int> task_at_worker(nworkers);
+    // Initialize variables used later.
+    int tag = 1;
+    int destination;
+    //MPI_Request IRreq; // Only used for non-blocking mpi messages
+    // Now we complete all the tasks.
 
-    // THIS CODE SHOULD BE REPLACED BY TASK FARM
+    int task = 0;
+
+    // Init tasks to all workers
+    for (int worker = 0; worker < nworkers; worker++){
+        if (verbose) std::cout <<"Master  : Working on task " << task <<"\n";
+        tag = 1;
+        destination = worker + 1;
+        MPI_Send(&settings[task], 8, MPI_DOUBLE, destination, tag,
+            MPI_COMM_WORLD); // Send the task to the worker queue
+        task_at_worker[worker] = task;
+    	task++;
+    }
+
+    // Receive tasks from any worker
+    int finished_worker_rank;
+    int finished_worker;
+    double acc;
+    MPI_Status status;
+    while (task<n_settings){
+        MPI_Recv(&acc, 1, MPI_DOUBLE,  MPI_ANY_SOURCE, MPI_ANY_TAG,
+                    MPI_COMM_WORLD, &status);
+    finished_worker_rank = status.MPI_SOURCE;
+	finished_worker = finished_worker_rank-1;
+	accuracy[task_at_worker[finished_worker]] = acc;
+        // Give worker new task.
+	task_at_worker[finished_worker] = task;
+        MPI_Send(&settings[task], 8, MPI_DOUBLE, finished_worker_rank, tag,
+            MPI_COMM_WORLD);
+	task++;
+    }
+     
+    // Now shut down the workers, once all tasks are done
+    std::array<double,8> shut_down_data = {std::numeric_limits<double>::max(),0,0,0,0,0,0,0};
+    for (int worker=0; worker < nworkers; worker++){
+	finished_worker_rank = worker +1;
+	
+    MPI_Recv(&accuracy[task_at_worker[worker]], 1, MPI_DOUBLE, finished_worker_rank,
+		       tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);	
+    MPI_Send(&shut_down_data, 8, MPI_DOUBLE,  finished_worker_rank, tag,
+                MPI_COMM_WORLD); 
+
+    }
+    //===============================================================================
+    //                        OUR CODE ENDS HERE
+    //===============================================================================
+    
+
+
+// THIS CODE SHOULD BE REPLACED BY TASK FARM
     // loop over all possible cuts and evaluate accuracy
-    for (long k=0; k<n_settings; k++)
-        accuracy[k] = task_function(settings[k], ds);
+    //for (long k=0; k<n_settings; k++)
+    //    accuracy[k] = task_function(settings[k], ds);
     // THIS CODE SHOULD BE REPLACED BY TASK FARM
     // ================================================================
 
@@ -174,24 +228,48 @@ void master (int nworker, Data& ds) {
             idx_best = k;
         }
     
-    std::cout << "Best accuracy obtained :" << best_accuracy_score << "\n";
-    std::cout << "Final cuts :\n";
-    for (int i=0; i<8; i++)
-        std::cout << std::setw(30) << ds.name[i] << " : " << settings[idx_best][i]*ds.flip[i] << "\n";
+    //std::cout << "Best accuracy obtained :" << best_accuracy_score << "\n";
+    //std::cout << "Final cuts :\n";
+    //for (int i=0; i<8; i++)
+        //std::cout << std::setw(30) << ds.name[i] << " : " << settings[idx_best][i]*ds.flip[i] << "\n";
     
-    std::cout <<  "\n";
-    std::cout <<  "Number of settings:" << std::setw(9) << n_settings << "\n";
-    std::cout <<  "Elapsed time      :" << std::setw(9) << std::setprecision(4)
-              << (tend - tstart).count()*1e-9 << "\n";
-    std::cout <<  "task time [mus]   :" << std::setw(9) << std::setprecision(4)
-              << (tend - tstart).count()*1e-3 / n_settings << "\n";
+    //std::cout <<  "\n";
+    //std::cout <<  "Number of settings:" << std::setw(9) << n_settings << "\n";
+    //std::cout <<  "Elapsed time      :" << std::setw(9) << std::setprecision(4)
+    //          << (tend - tstart).count()*1e-9 << "\n";
+    //std::cout <<  "task time [mus]   :" << std::setw(9) << std::setprecision(4)
+    //          << (tend - tstart).count()*1e-3 / n_settings << "\n";
+    std::cout << best_accuracy_score << " ";
+    for (int i=0; i<8; i++)
+        std::cout << settings[idx_best][i]*ds.flip[i] << " ";
+    std::cout << n_settings << " " << (tend-tstart).count()*1e-9 << " " << (tend - tstart).count()*1e-3 / n_settings << " " << nworkers +1 << "\n";
 }
 
 void worker (int rank, Data& ds) {
-    /*
-    IMPLEMENT HERE THE CODE FOR THE WORKER
-    Use a call to "task_function" to complete a task and return accuracy to master.
-    */
+    //===============================================================================
+    //                  OUR CODE STARTS HERE
+    //===============================================================================
+    std::array<double,8> setting;           // The task must be declared. It is given in the MPI_Recv function.
+    int tag = 1;         // This worker will only take the process allocated to it, in the tag line.
+    int master_rank = 0;    // The master rank is 0 as a default.
+    double acc;
+   
+    while (true){
+        //std::cout << "Worker " << rank << ": Initialized and waiting for a task\n";
+        MPI_Recv(&setting, 8, MPI_DOUBLE, master_rank, tag,
+                    MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if (setting[0] == std::numeric_limits<double>::max()) break;
+        //std::cout << "Worker " << rank << ": Received an MPI message to sleep for " << task << " milliseconds\n";
+        acc = task_function(setting, ds);
+        //std::cout << "Worker " << rank << ": Completed task. Sending result back to master\n";
+        MPI_Send(&acc, 1, MPI_DOUBLE, master_rank, tag,
+                        MPI_COMM_WORLD);
+    }    
+    if(verbose) std::cout << "Worker "<< rank << " Done " << "\n";
+    
+    //===============================================================================
+    //                        OUR CODE ENDS HERE
+    //===============================================================================
 }
 
 int main(int argc, char *argv[]) {
