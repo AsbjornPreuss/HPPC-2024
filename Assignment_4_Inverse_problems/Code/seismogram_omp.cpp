@@ -17,7 +17,7 @@
 // ======================================================
 // The number of frequencies sets the cost of the problem
 const long NTHREADS=1;            // number of threads
-const long NFREQ=64*1024;         // number of frequencies per core
+const long NFREQ=16*1024;         // number of frequencies per core
 const long nfreq=NFREQ*NTHREADS;  // frequencies in spectrum
 
 // ======================================================
@@ -160,30 +160,42 @@ DoubleVector propagator(std::vector<double> wave,
 
     auto tstart = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     
-
+    #pragma omp parallel 
+    {
         // Compute seismic impedance
+    #pragma omp for 
     for (long i=0; i < nlayers; i++)
         imp[i] = density[i] * velocity[i];
     
     // Reflection coefficients at the base of the layers :
+    // DEPENDS ON imp
+    #pragma omp for
     for (long i=0; i < nlayers-1; i++)
         ref[i] = (imp[i+1] - imp[i])/(imp[i+1] + imp[i]);
 
+    
     // Spectral window (both low- and high cut)
+    #pragma omp for 
     for (long i=0; i < lc+1; i++)
         half_filter[i]= (sin(M_PI*(2*i-lc)/(2*lc)))/2+0.5;
 
+    #pragma omp for
     for (long i=0; i < nfreq/2+1; i++)
         filter[i] = half_filter[i];
-
+     
+    #pragma omp single
     filter[nfreq/2+1] = 1;
+    
 
+    #pragma omp for
     for (long i=nfreq/2+2; i < nfreq+1; i++)
         filter[i] = half_filter[nfreq+1-i];
 
+    #pragma omp for
     for (long i=0; i < n_wave/2; i++)
         half_wave[i] = wave[n_wave/2-1+i];
-
+    
+    #pragma omp for reduction(+:mean_wave)
     for (long i=0; i < 2*nfreq; i++) {
         if (i < nfreq) {
             wave_spectral[i] = half_wave[i];
@@ -193,19 +205,24 @@ DoubleVector propagator(std::vector<double> wave,
         mean_wave += std::real(wave_spectral[i]);
     }
 
+    #pragma omp single 
     mean_wave = mean_wave / nsamp;
-
+    
+    #pragma omp for
     for (long i=0.; i < 2*nfreq; i++)
         wave_spectral[i] -= mean_wave;
 
+    #pragma omp single
+    {
     // Fourier transform waveform to frequency domain
     tstart1 = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     fft(wave_spectral);
     tend1 = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
+    }
 
     // spectrum U of upgoing waves just below the surface.
     // See eq. (43) and (44) in Ganley (1981).
-
+    #pragma omp for
     for (long i=0; i < nfreq+1; i++) {
         Complex omega{0, 2*M_PI*i*dF};
         Complex exp_omega = exp( - dT * omega);
@@ -216,25 +233,33 @@ DoubleVector propagator(std::vector<double> wave,
     }
 
     // Compute seismogram
+    #pragma omp for
     for (long i=0; i < nfreq+1; i++) {
         U[i] *= filter[i];
         Upad[i] = U[i];
     }
 
+    #pragma omp for 
     for (long i=nfreq+1; i < nsamp; i++)
         Upad[i] = std::conj(Upad[nsamp - i]);
-
+    
+    #pragma omp for
     for (long i=0; i < nsamp; i++)
         Upad[i] *= wave_spectral[i];
-    
+     
+    #pragma omp single
+    {
     // Fourier transform back again
     tstart2 = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     ifft(Upad);
     tend2 = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
+    }
 
+    #pragma omp for
     for (long i=0; i < nsamp; i++)
         seismogram[i] = std::real(Upad[i]);
-
+    
+    }
     auto tend = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
 
     std::cout <<  "Wave zero-point        : "  << std::setw(9) << std::setprecision(5) 
