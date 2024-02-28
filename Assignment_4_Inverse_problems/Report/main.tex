@@ -1,0 +1,36 @@
+\documentclass{article}
+\usepackage{color}
+\usepackage{placeins}
+\usepackage{listings}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{subcaption}
+\usepackage{cleveref}
+\usepackage{geometry}[margins=1in]
+\setlength{\parskip}{4pt plus 2pt}
+\setlength{\parindent}{0pt}
+%\pagecolor[rgb]{0,0,0} %black
+%\color[rgb]{1,1,1} %grey
+\lstset{language=C++,
+keywordstyle=\color{blue},
+stringstyle=\color{red},
+commentstyle=\color{green},
+morecomment=[l][\color{magenta}]{\#},
+breaklines=true,
+breakatwhitespace=true,
+numbers=left
+}
+\title{Assignment \#4}
+\author{Asbjørn Bonefeld Preuss,\\ Daniel Lomholt Christensen,\\ Elie Cueto}
+\date{March 2024}
+
+\begin{document}
+\maketitle
+\section{}
+
+\section{Source Code}
+\label{sec:source}
+\lstinputlisting[language=c++]{../Code/seismogram_omp.cpp}
+
+\end{document}
