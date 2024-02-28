@@ -38,7 +38,11 @@ Next, the fast fourier transformation(lines 104-129) was parallelised. Since the
 
 The fft calls inside the fft function are therefore just given to a thread, and then the computer is asked to wait until the tasks finish.
 
-Finally the inverse fast fourier transform(lines 132-152) is parallelised. The ifft is run in parallel, with the two loops getting the omp for directive, and the fft call given on only a single node. The second loop is split, into a vectorisable part and non-vectorisable part, and given the appropriate directives to compile it correctly.
+Finally the inverse fast fourier transform(lines 132-152) is parallelised. The ifft is run in parallel, with the two loops getting the omp for directive, and the fft call given on only a single thread. The second loop is split, into a vectorisable part and non-vectorisable part, and given the appropriate directives to compile it correctly.
+
+The overall strategy is therefore to parallelise what can be parallelised, if there is any gain to be made from the parallelisation.
+
+We tested that the checksum is the same, 23.2912755963295 for the vectorised, and 23.2912755963295 for the sequential code, run with $nfreg=2^16$. 
 
 \section{Task \#2}
 
