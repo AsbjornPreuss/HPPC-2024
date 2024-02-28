@@ -17,7 +17,7 @@
 // ======================================================
 // The number of frequencies sets the cost of the problem
 const long NTHREADS=1;            // number of threads
-const long NFREQ=16*1024;         // number of frequencies per core
+const long NFREQ=64*1024;         // number of frequencies per core
 const long nfreq=NFREQ*NTHREADS;  // frequencies in spectrum
 
 // ======================================================
@@ -100,6 +100,7 @@ std::vector<double> read_txt_file(std::string fname) {
     return data;
 }
 
+const int stop_size = 256;
 // Cooley–Tukey FFT (in-place computation)
 void fft(std::vector<Complex>& x)
 {
@@ -112,12 +113,15 @@ void fft(std::vector<Complex>& x)
 	    even[i] = x[2*i];
 	    odd[i]  = x[2*i+1];
 	}
-
 	// conquer
+    #pragma omp task shared(even) if (N>stop_size)
 	fft(even);
+    #pragma omp task shared(odd) if (N>stop_size)
 	fft(odd);
-
+     
+    #pragma omp taskwait
 	// combine
+
 	for (long k = 0; k < N/2; k++)
 	{
 		Complex t = std::polar(1.0, -2 * M_PI * k / N) * odd[k];
