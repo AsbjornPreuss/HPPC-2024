@@ -13,7 +13,6 @@
 #include <cmath>
 #include <omp.h>
 
-
 // ======================================================
 // The number of frequencies sets the cost of the problem
 const long NTHREADS=1;            // number of threads
@@ -134,11 +133,23 @@ void fft(std::vector<Complex>& x)
 void ifft(std::vector<Complex>& x)
 {
     double inv_size = 1.0 / x.size();
-    for (auto& xx: x) xx = std::conj(xx); // conjugate the input
-	fft(x);  	   // forward fft
-    for (auto& xx: x) 
-        xx = std::conj(xx)  // conjugate the output
-            * inv_size;     // scale the numbers
+    #pragma omp parallel
+    {
+         #pragma omp for
+         for (auto& xx: x) xx = std::conj(xx); // conjugate the input
+
+         #pragma omp single
+         fft(x);  	   // forward fft
+
+         #pragma omp for
+         for (auto& xx: x) 
+             xx = std::conj(xx);  // conjugate the output
+         
+         //for (auto& xx: x) 
+         #pragma omp simd
+         for (long unsigned  int i = 0; i < x.size(); ++i)
+             x[i] = x[i] * inv_size;     // scale the numbers
+    }
 }
 
 // Main routine: propgate wave through layers and compute seismogram
@@ -250,7 +261,7 @@ DoubleVector propagator(std::vector<double> wave,
     #pragma omp for
     for (long i=0; i < nsamp; i++)
         Upad[i] *= wave_spectral[i];
-     
+    
     #pragma omp single
     {
     // Fourier transform back again
@@ -297,8 +308,9 @@ int main(int argc, char* argv[]){
     std::ofstream file("seismogram.txt"); // open file
     for (long i=0; i < nsamp; i++) {
         file << seismogram[i] << '\n';
-        checksum += abs(seismogram[i]);
+        checksum += fabs(seismogram[i]);
     }
     std::cout <<  "Checksum    :" << std::setw(20) << std::setprecision(15)
               << checksum << "\n";
+    return 0;
 }
