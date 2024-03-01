@@ -25,9 +25,11 @@ numbers=left
 \author{Asbjørn Bonefeld Preuss,\\ Daniel Lomholt Christensen,\\ Elie Cueto}
 \date{March 2024}
 
+\renewcommand{\thesection}{Task \#\arabic{section}}
+\renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
 \begin{document}
 \maketitle
-\section{Task \#1}
+\section{Parallelising the code}\label{sec:taskone}
 In order to parallelise the code, we first profiled the sequential code. This result can be seen in appendix \ref{sec:Profiling}. The profiling showed that our initial effort should be concentrated around the propagator function, and then next address the fourier transformation, and finally the inverse fourier transformation.
 
 The propagator function was parallelised by first beginning a parallel block on line 178, as soon as all the important declarations and initialisations are done. This block ends just before the function prints out the debugging information and ends the time taking, at line 278. 
@@ -44,9 +46,39 @@ The overall strategy is therefore to parallelise what can be parallelised, if th
 
 We tested that the checksum is the same, 23.2912755963295 for the vectorised, and 23.2912755963295 for the sequential code, run with $n_{freq}=2^{16}$. 
 
-\section{Task \#2}
+\section{Scaling}
 \subsection{Strong scaling}
+In order to investigate the strong scaling of the problem, three versions of the parallelised code were compiled. The first having only gotten added pragmas in the propagator function, the second having been optimised in the FFT-function, and the last having some parallelisation added to the IFFT-function as described in the previous section.
 
+Each of these programs were then asked to solve the inverse problem with \(2^{20}\) frequencies in the spectrum. Afterwards, we fitted Amdahl's law to the data points and got that the serial part of the code was 7\% in v1, 5\% in v2, but in v3, where we tried to parallelise the inverse fourier transform, the added overheads made the code slower, with 6\% serial source code.
+For completeness, this corresponds to 93\%, 95\%, and 94\% parallel code for the first, second, and third version respectively.
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/amdahl.pdf}
+    \caption{The strong scaling of the three different versions of the program.}
+    \label{fig:amdahl}
+\end{figure}
+
+\subsection{Weak scaling}
+For weak scaling, we mulitplied the amount of frequencies in the spectrum by the amount of available cores. Which, if all of the code scaled linearly would give us a simple linear relationship in time and a constant speed-up. However, the Fourier Transform is using a divide and conquer approach, resulting in $\mathcal{O}(N\log N$ operations, for a problem of size $N$. This means that the rest of the code executes in a constant amount of time, but the transforms keep on taking longer and longer as seen in \cref{fig:fft_scaling}. To take this into account, we scaled the speed-up with the scale of FLOPS,
+\begin{align}
+    S &= \frac{t_{seq}}{t_\text{no fft} + \log(N) \cdot t_\text{fft}} \cdot N.
+\end{align}
+This relationship is plotted in \cref{fig:weak}.
+%In the report it is expected that you interpret and discuss your scaling results. You should interpret them considering the code, the workload, and in the context of the shared memory architecture of ERDA.
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/weak_scaling_corrected.pdf}
+    \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data_sets}
+    \label{fig:weak}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/FFT_scaling.pdf}
+    \caption{The scaling of the part of the code involving Fourier transforms, and the rest of the code. The former clearly rising with the scaling of the number of threads/problem size, and the latter remaining constant.}
+    \label{fig:fft_scaling}
+\end{figure}
 
 \appendix
 \newpage
