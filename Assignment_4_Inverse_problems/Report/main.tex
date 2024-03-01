@@ -54,7 +54,7 @@ Each of these programs were then asked to solve the inverse problem with \(2^{20
 For completeness, this corresponds to 93\%, 95\%, and 94\% parallel code for the first, second, and third version respectively.
 \begin{figure}
     \centering
-    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/amdahl.pdf}
+    \includegraphics[width=\textwidth]{./figures/amdahl.pdf}
     \caption{The strong scaling of the three different versions of the program.}
     \label{fig:amdahl}
 \end{figure}
@@ -68,14 +68,14 @@ This relationship is plotted in \cref{fig:weak}.
 %In the report it is expected that you interpret and discuss your scaling results. You should interpret them considering the code, the workload, and in the context of the shared memory architecture of ERDA.
 \begin{figure}
     \centering
-    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/weak_scaling_corrected.pdf}
+    \includegraphics[width=\textwidth]{./figures/weak_scaling_corrected.pdf}
     \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data_sets}
     \label{fig:weak}
 \end{figure}
 
 \begin{figure}
     \centering
-    \includegraphics[width=\textwidth]{Assignment_4_Inverse_problems/Report/figures/FFT_scaling.pdf}
+    \includegraphics[width=\textwidth]{./figures/FFT_scaling.pdf}
     \caption{The scaling of the part of the code involving Fourier transforms, and the rest of the code. The former clearly rising with the scaling of the number of threads/problem size, and the latter remaining constant.}
     \label{fig:fft_scaling}
 \end{figure}
