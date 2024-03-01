@@ -42,19 +42,22 @@ Finally the inverse fast fourier transform(lines 132-152) is parallelised. The i
 
 The overall strategy is therefore to parallelise what can be parallelised, if there is any gain to be made from the parallelisation.
 
-We tested that the checksum is the same, 23.2912755963295 for the vectorised, and 23.2912755963295 for the sequential code, run with $nfreg=2^16$. 
+We tested that the checksum is the same, 23.2912755963295 for the vectorised, and 23.2912755963295 for the sequential code, run with $n_{freq}=2^{16}$. 
 
 \section{Task \#2}
+\subsection{Strong scaling}
+
 
 \appendix
+\newpage
 \section{Profiling}
 \label{sec:Profiling}
 \begin{figure}[h]
-    \includegraphics[width=0.4\textwidth]{figures/gprof_seq.png}
+    \includegraphics[height=0.6\textheight]{figures/gprof_seq.png}
     \centering
     \caption*{Profiling of the sequential program.}
 \end{figure}
-
+\FloatBarrier
 \section{Source Code}
 \label{sec:source}
 \lstinputlisting[language=c++]{../Code/seismogram_omp.cpp}
