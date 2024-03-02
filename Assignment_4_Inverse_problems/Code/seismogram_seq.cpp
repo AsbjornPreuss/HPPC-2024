@@ -18,7 +18,7 @@ typedef std::complex<double> Complex;
 
 // ======================================================
 // The number of frequencies sets the cost of the problem
-const long nfreq=64*1024; // frequencies in spectrum
+const long nfreq=1024*1024; // frequencies in spectrum
 // ======================================================
 
 // Initialize Basic Constants
