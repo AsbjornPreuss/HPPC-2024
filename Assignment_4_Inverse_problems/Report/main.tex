@@ -65,11 +65,12 @@ For weak scaling, we mulitplied the amount of frequencies in the spectrum by the
     S &= \frac{t_{seq}}{t_\text{no fft} + \log(N) \cdot t_\text{fft}} \cdot N.
 \end{align}
 This relationship is plotted in \cref{fig:weak}.
+The reason for this reduction in performance could be explained by the memory structure, since the complex numbers are stored on the master core's memory. The simple operations of conjugating and scaling the numbers, are cheaper to do than moving the data between nodes. To get the parallelisation of the IFFT function actually give us better performance, we would have to distribute the \texttt{Upad} vector to the different nodes. We tried to implement this using the NUMA\_Allocator, but weren't successful within the time limits of the assignment.
 %In the report it is expected that you interpret and discuss your scaling results. You should interpret them considering the code, the workload, and in the context of the shared memory architecture of ERDA.
 \begin{figure}
     \centering
     \includegraphics[width=\textwidth]{./figures/weak_scaling_corrected.pdf}
-    \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data_sets}
+    \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data-sets}
     \label{fig:weak}
 \end{figure}
 
@@ -81,10 +82,9 @@ This relationship is plotted in \cref{fig:weak}.
 \end{figure}
 
 \appendix
-\newpage
 \section{Profiling}
 \label{sec:Profiling}
-\begin{figure}[h]
+\begin{figure}[ht]
     \includegraphics[height=0.6\textheight]{figures/gprof_seq.png}
     \centering
     \caption*{Profiling of the sequential program.}
