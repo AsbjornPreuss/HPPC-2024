@@ -36,22 +36,22 @@ The propagator function was parallelised by first beginning a parallel block on 
 
 Inside the parallel block, all for loops are given an omp for directive, thus spreading the loop iterations over the threads. Omp single directives are used when only one thread must execute the code. This is all that was used to parallelise the propagator function.
 
-Next, the fast fourier transformation(lines 104-129) was parallelised. Since the fft is a recursive function, the most important part to parallelise is the calling of the function itself. We do not want to parallelise the for loops, because each time the function is called a new, the threads must be spun up anew, as they cannot be used for calling the function again.
+Next, the fast fourier transformation(lines 104-129) was parallelised. Since the fft is a recursive function, the most important part to parallelise is the calling of the function itself. We do not want to parallelise the for loops, because each time the function is called anew, the threads must be spun up anew, as they cannot be used for calling the function again.
 
 The fft calls inside the fft function are therefore just given to a thread, and then the computer is asked to wait until the tasks finish.
 
 Finally the inverse fast fourier transform(lines 132-152) is parallelised. The ifft is run in parallel, with the two loops getting the omp for directive, and the fft call given on only a single thread. The second loop is split, into a vectorisable part and non-vectorisable part, and given the appropriate directives to compile it correctly.
 
-The overall strategy is therefore to parallelise what can be parallelised, if there is any gain to be made from the parallelisation.
+The overall strategy is therefore to parallelise what can be parallelised, if there is any gain to be made from the parallelisation. Whether our attempts actually improved the code will be discussed in the next session.
 
 We tested that the checksum is the same, 23.2912755963295 for the vectorised, and 23.2912755963295 for the sequential code, run with $n_{freq}=2^{16}$. 
 
 \section{Scaling}
 \subsection{Strong scaling}
-In order to investigate the strong scaling of the problem, three versions of the parallelised code were compiled. The first having only gotten added pragmas in the propagator function, the second having been optimised in the FFT-function, and the last having some parallelisation added to the IFFT-function as described in the previous section.
+In order to investigate the strong scaling of the problem, three versions of the parallelised code were compiled. The first having only gotten pragmas added in the propagator function, the second having been optimised in the FFT-function, and the last having some parallelisation added to the IFFT-function as described in the previous section.
 
 Each of these programs were then asked to solve the inverse problem with \(2^{20}\) frequencies in the spectrum. Afterwards, we fitted Amdahl's law to the data points and got that the serial part of the code was 7\% in v1, 5\% in v2, but in v3, where we tried to parallelise the inverse fourier transform, the added overheads made the code slower, with 6\% serial source code.
-For completeness, this corresponds to 93\%, 95\%, and 94\% parallel code for the first, second, and third version respectively.
+For completeness, this corresponds to 93\%, 95\%, and 94\% parallel code for the first, second, and third version respectively. These results can be seen on \cref{fig:amdahl}
 \begin{figure}
     \centering
     \includegraphics[width=\textwidth]{./figures/amdahl.pdf}
@@ -60,17 +60,19 @@ For completeness, this corresponds to 93\%, 95\%, and 94\% parallel code for the
 \end{figure}
 
 \subsection{Weak scaling}
-For weak scaling, we mulitplied the amount of frequencies in the spectrum by the amount of available cores. Which, if all of the code scaled linearly would give us a simple linear relationship in time and a constant speed-up. However, the Fourier Transform is using a divide and conquer approach, resulting in $\mathcal{O}(N\log N$ operations, for a problem of size $N$. This means that the rest of the code executes in a constant amount of time, but the transforms keep on taking longer and longer as seen in \cref{fig:fft_scaling}. To take this into account, we scaled the speed-up with the scale of FLOPS,
+For weak scaling, we mulitplied the amount of frequencies in the spectrum by the amount of available cores. Which, if all of the code scaled linearly would give us a simple linear relationship in time and no speed-up, measured by the time it takes to complete the task, but more calculations done. However, the Fourier Transform is using a divide and conquer approach, resulting in $\mathcal{O}(N\log N)$ operations, for a problem of size $N$. This means that the rest of the code executes in a constant amount of time, but the transforms keep on taking longer and longer as seen in \cref{fig:fft_scaling}. To take this into account, we scaled the speed-up with the scale of FLOPS,
 \begin{align}
     S &= \frac{t_{seq}}{t_\text{no fft} + \log(N) \cdot t_\text{fft}} \cdot N.
 \end{align}
 This relationship is plotted in \cref{fig:weak}.
 The reason for this reduction in performance could be explained by the memory structure, since the complex numbers are stored on the master core's memory. The simple operations of conjugating and scaling the numbers, are cheaper to do than moving the data between nodes. To get the parallelisation of the IFFT function actually give us better performance, we would have to distribute the \texttt{Upad} vector to the different nodes. We tried to implement this using the NUMA\_Allocator, but weren't successful within the time limits of the assignment.
+
+The code was run with the openMP environment variable OMP\_Places=cores and OMP\_PROC\_BIND=close. This means that when a thread is spun up, it will attempt to be on the same core as the thread that started it, and if this is not possible it will exist on a core that is close to the original thread. This means that the distance between main memory and a specific thread could be larger than necessary, as the other die of the CPU could be taken into use, before all available threads are used on the initial CPU. This is important for the IFFT, as it does not parallelize very well, due to the complex variables needing to be stored in main memory. 
 %In the report it is expected that you interpret and discuss your scaling results. You should interpret them considering the code, the workload, and in the context of the shared memory architecture of ERDA.
 \begin{figure}
     \centering
     \includegraphics[width=\textwidth]{./figures/weak_scaling_corrected.pdf}
-    \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data-sets}
+    \caption{Weak scaling of the code. The Speed-Up is corrected for the extra FLOPS of the larger data-sets. As expected, we are able to do many more calculations on more cores than on just a single one.}
     \label{fig:weak}
 \end{figure}
 
