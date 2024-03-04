@@ -133,8 +133,6 @@ void fft(std::vector<Complex>& x)
 void ifft(std::vector<Complex>& x)
 {
     double inv_size = 1.0 / x.size();
-    #pragma omp parallel
-    {
          #pragma omp for
          for (auto& xx: x) xx = std::conj(xx); // conjugate the input
 
@@ -146,10 +144,9 @@ void ifft(std::vector<Complex>& x)
              xx = std::conj(xx);  // conjugate the output
          
          //for (auto& xx: x) 
-         #pragma omp simd
+         #pragma omp parallel
          for (long unsigned  int i = 0; i < x.size(); ++i)
              x[i] = x[i] * inv_size;     // scale the numbers
-    }
 }
 
 // Main routine: propgate wave through layers and compute seismogram
@@ -262,13 +259,13 @@ DoubleVector propagator(std::vector<double> wave,
     for (long i=0; i < nsamp; i++)
         Upad[i] *= wave_spectral[i];
     
-    #pragma omp single
-    {
     // Fourier transform back again
+    #pragma omp master
     tstart2 = std::chrono::high_resolution_clock::now(); // start time (nano-seconds)
     ifft(Upad);
+
+    #pragma omp master
     tend2 = std::chrono::high_resolution_clock::now(); // end time (nano-seconds)
-    }
 
     #pragma omp for
     for (long i=0; i < nsamp; i++)
