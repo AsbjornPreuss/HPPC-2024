@@ -144,7 +144,7 @@ void ifft(std::vector<Complex>& x)
              xx = std::conj(xx);  // conjugate the output
          
          //for (auto& xx: x) 
-         #pragma omp parallel
+         #pragma omp for
          for (long unsigned  int i = 0; i < x.size(); ++i)
              x[i] = x[i] * inv_size;     // scale the numbers
 }
