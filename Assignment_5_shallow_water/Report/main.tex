@@ -31,25 +31,26 @@ numbers=left
 \maketitle
 \section{OpenACC parallelise the program}
 The initial bottlenecks of the program without OpenACC was analysed using gprof. The result can be seen on figure \ref{fig:profiling:seq}. The profiling showed that efforts at parallelising the program should be focused around the integration function.
-\begin{figure}[H]
-    \includegraphics[width=0.7\textwidth]{./figures/sequential_profile.png}
+\begin{figure}[h]
+    \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
     \caption{Profiling of the sequential code, run with gprof and generated with gprof2dot.}
     \label{fig:profiling:seq}
 \end{figure}
 We initially had some loops running in parallel on the gpu. 
 We did this by initialising an accelerated region around the for loop of the simulation (line 155-164).
-We here define which data is copied in, and must be copied out as well. In this function, the calculated version of water_world.e is pushed to the cpu's version of water_history.
+We here define which data is copied in, and must be copied out as well. In this function, the calculated version of water\_world.e is pushed to the cpu's version of water\_history.
 
 On line 158 the integration function is called. In the integration function, the exchange horizontal and vertical ghost lines functions were quickly paralellised with acc parallel loop gang directives.
 
 Next up, the integration function has two nested for loops, that are parallelized with parallel loop collapse.
 
 With this setup we profiled the GPU accelerated code, and this result can be seen in figure \ref{fig:profiling:firstattempt}.
-\begin{figure}[H]
-    \includegraphics[width=0.7\textwidth]{./figures/sequential_profile.png}
+\begin{figure}[h]
+    \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
     \caption*{Profiling of the first try to parallelise the code. }
+    \label{fig:profiling:firstattempt}
 \end{figure}
 
 
