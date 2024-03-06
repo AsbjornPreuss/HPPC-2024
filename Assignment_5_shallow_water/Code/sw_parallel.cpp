@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <openacc.h>
 using real_t = float;
-constexpr size_t NX = 512, NY = 512; //World Size
+constexpr size_t NX = 1024, NY = 1024; //World Size
 using grid_t = std::array<std::array<real_t, NX>, NY>;
 
 class Sim_Configuration {
@@ -90,11 +90,14 @@ void to_file(const std::vector<grid_t> &water_history, const std::string &filena
  * @param data   The data update, which could be the water elevation `e` or the speed in the horizontal direction `u`.
  * @param shape  The shape of data including the ghost lines.
  */
-void exchange_horizontal_ghost_lines(grid_t& data) {
-    #pragma acc parallel loop gang //present(data[0:NX][0:NY], NX, NY)
+void exchange_horizontal_ghost_lines(grid_t& data0,grid_t& data1) {
+    #pragma acc parallel loop gang present(data0,data1, NX, NY)
     for (uint64_t j = 0; j < NX; ++j) {
-        data[0][j]      = data[NY-2][j]; 
-        data[NY-1][j]   = data[1][j];
+        data0[0][j]      = data0[NY-2][j]; 
+        data0[NY-1][j]   = data0[1][j];
+        data1[0][j]      = data1[NY-2][j]; 
+        data1[NY-1][j]   = data1[1][j];
+        
     }
 }
 
@@ -103,11 +106,13 @@ void exchange_horizontal_ghost_lines(grid_t& data) {
  * @param data   The data update, which could be the water elevation `e` or the speed in the vertical direction `v`.
  * @param shape  The shape of data including the ghost lines.
  */
-void exchange_vertical_ghost_lines(grid_t& data) {
-    #pragma acc parallel loop gang // present(data[0:NX][0:NY], NX, NY)
+void exchange_vertical_ghost_lines(grid_t& data0,grid_t& data1) {
+    #pragma acc parallel loop gang present(data0,data1, NX, NY)
     for (uint64_t i = 0; i < NY; ++i) {
-        data[i][0] = data[i][NX-2];
-        data[i][NX-1] = data[i][1];
+        data0[i][0] = data0[i][NX-2];
+        data0[i][NX-1] = data0[i][1];
+        data1[i][0] = data1[i][NX-2];
+        data1[i][NX-1] = data1[i][1];
     }
 }
 
@@ -115,25 +120,25 @@ void exchange_vertical_ghost_lines(grid_t& data) {
  *
  * @param w The water world to update.
  */
-void integrate(Water &w, const real_t dt, const real_t dx, const real_t dy, const real_t g) {
+void integrate(Water &w, const real_t &dtdx, const real_t& dtdy, const real_t& g) {
     
-    exchange_horizontal_ghost_lines(w.e);
-    exchange_horizontal_ghost_lines(w.v);
-    exchange_vertical_ghost_lines(w.e);
-    exchange_vertical_ghost_lines(w.u);
-
-    #pragma acc parallel loop collapse(2) //present(w.e[0:NX][0:NY],w.u[0:NX][0:NY],w.v[0:NX][0:NY], dt, dx, dy, g)
+    exchange_horizontal_ghost_lines(w.e,w.v);
+    //exchange_horizontal_ghost_lines(w.v);
+    exchange_vertical_ghost_lines(w.e,w.u);
+    //exchange_vertical_ghost_lines(w.u);
+    
+    #pragma acc parallel loop gang vector collapse(2) present(w,dtdx,dtdy,g,NX,NY)
     for (uint64_t i = 0; i < NY - 1; ++i) {
     for (uint64_t j = 0; j < NX - 1; ++j){
-        w.u[i][j] -= dt / dx * g * (w.e[i][j+1] - w.e[i][j]);
-        w.v[i][j] -= dt / dy * g * (w.e[i + 1][j] - w.e[i][j]);
+        w.u[i][j] -= dtdx * g * (w.e[i][j+1] - w.e[i][j]);
+        w.v[i][j] -= dtdy * g * (w.e[i + 1][j] - w.e[i][j]);
     }
     }
-    #pragma acc parallel loop collapse(2)  //present(w.e[0:NX][0:NY],w.u[0:NX][0:NY],w.v[0:NX][0:NY], dt, dx, dy, g)
+    #pragma acc parallel loop gang vector collapse(2)  present(w,dtdx,dtdy,g,NX,NY)
     for (uint64_t i = 1; i < NY - 1; ++i) {
     for (uint64_t j = 1; j < NX - 1; ++j) {
-        w.e[i][j] -= dt / dx * (w.u[i][j] - w.u[i][j-1])
-                   + dt / dy * (w.v[i][j] - w.v[i-1][j]);
+        w.e[i][j] -= dtdx * (w.u[i][j] - w.u[i][j-1])
+                   + dtdy * (w.v[i][j] - w.v[i-1][j]);
     }
     }
     
@@ -149,13 +154,15 @@ void integrate(Water &w, const real_t dt, const real_t dx, const real_t dy, cons
 void simulate(const Sim_Configuration config) {
     auto begin0 = 0.;
     Water water_world = Water();
-
+    const real_t dt = config.dt; const real_t dx=config.dx; const real_t dy=config.dy; const real_t g=config.g;
     std::vector <grid_t> water_history;
+    //std::array<grid_t, config.iter / config.data_period> water_history;
     auto begin = std::chrono::steady_clock::now();
-    #pragma acc data copy(water_world, config.dt,  config.dx, config.dy, config.g, NX, NY)//water_world.e[0:NX][0:NY],water_world.u[0:NX][0:NY],water_world.v[0:NX][0:NY],
+    const real_t dtdx = dt/dx; const real_t dtdy = dt/dy;
+    #pragma acc data copyin(water_world, dtdx,  dtdy, g, NX, NY)//water_world.e[0:NX][0:NY],water_world.u[0:NX][0:NY],water_world.v[0:NX][0:NY],
     {
     for (uint64_t t = 0; t < config.iter; ++t) {
-        integrate(water_world, config.dt,  config.dx, config.dy, config.g);
+        integrate(water_world, dtdx, dtdy, g);
         if (t % config.data_period == 0) {
             #pragma acc update host(water_world.e)
             water_history.push_back(water_world.e);
@@ -163,11 +170,11 @@ void simulate(const Sim_Configuration config) {
     }
     }
     auto end = std::chrono::steady_clock::now();
-    begin0 += (end-begin).count() / 1000000000.;
+    begin0 += (end-begin).count() / 1'000'000'000.;
     to_file(water_history, config.filename);
 
     std::cout << "checksum: " << std::accumulate(water_world.e.front().begin(), water_world.e.back().end(), 0.0) << std::endl;
-    std::cout << "elapsed time: " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
+    std::cout << "elapsed time: " << (end - begin).count() / 1'000'000'000.0 << " sec" << std::endl;
     
 }
 
