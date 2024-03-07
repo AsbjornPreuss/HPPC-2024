@@ -38,7 +38,7 @@ The initial bottlenecks of the program without OpenACC was analysed using gprof.
     \label{fig:profiling:seq}
 \end{figure}
 We initially had some loops running in parallel on the gpu. 
-We did this by initialising an accelerated region around the for loop of the simulation (line 155-164).
+We did this by initialising a GPU accelerated region around the for loop of the simulation (line 155-164).
 We here define which data is copied in, and must be copied out as well. In this function, the calculated version of water\_world.e is pushed to the cpu's version of water\_history.
 
 On line 158 the integration function is called. In the integration function, the exchange horizontal and vertical ghost lines functions were quickly paralellised with acc parallel loop gang directives.
@@ -49,10 +49,35 @@ With this setup we profiled the GPU accelerated code, and this result can be see
 \begin{figure}[h]
     \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
-    \caption*{Profiling of the first try to parallelise the code. }
+    \caption{Profiling of the first try to parallelise the code. }
     \label{fig:profiling:firstattempt}
 \end{figure}
 
+In the next attempt at optimization, we merged the two horizontal ghost line functions, as well as the two vertical ghost line functions, such that they calculate both w.e and w.u at the same time.
+
+The initalisation of the accelerated region was also changed, such that it only copies in, not out. Finally, the integration loops gained an extra level of paralellisation by becoming parallel loop gang vectors instead of just parallel loops. This allows these used to be executed by gangs in vectors.
+
+The results from this implementation can be seen on figure \ref{fig:profiling:secondattempt}
+\begin{figure}[h]
+    \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
+    \centering
+    \caption{Profiling of the second try to parallelise the code. }
+    \label{fig:profiling:secondattempt}
+\end{figure}
+
+The third attempt focused on directing the compiler as to what data is already present on the GPU. This was done by the use of the present(variables) clause, which was put into the ghost functions, as well as the integration function.
+
+Furthermore, the division of dt/dx and dt/dy in the integration function, was calculated a priori, such that we save those flops.
+
+A profiling of this third attempt can be seen on figure \ref{fig:profiling:thirdattempt}
+\begin{figure}[h]
+    \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
+    \centering
+    \caption{Profiling of the third try to parallelise the code. }
+    \label{fig:profiling:thirdattempt}
+\end{figure}
+
+The final attempt laid in only sending water\_history forth and back once between CPU and GPU, as well as paralellising a larger region at once, resulting in us optimising the synchronisation effort between individual GPU loops and the CPU, out of the program. 
 
 \section{Strong and weak scaling using SLURM}
 
