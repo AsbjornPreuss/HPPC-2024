@@ -21,7 +21,7 @@ breaklines=true,
 breakatwhitespace=true,
 numbers=left
 }
-\title{Assignment \#4}
+\title{Assignment \#5}
 \author{Asbjørn Bonefeld Preuss,\\ Daniel Lomholt Christensen,\\ Elie Cueto}
 \date{March 2024}
 
@@ -30,7 +30,7 @@ numbers=left
 \begin{document}
 \maketitle
 \section{OpenACC parallelise the program}
-The initial bottlenecks of the program without OpenACC was analysed using gprof. The result can be seen on figure \ref{fig:profiling:seq}. The profiling showed that efforts at parallelising the program should be focused around the integration function.
+The initial bottlenecks of the program without OpenACC was analysed using gprof. The result can be seen in figure \ref{fig:profiling:seq}. The profiling showed that efforts at parallelising the program should be focused around the integration function.
 \begin{figure}[h]
     \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
@@ -57,7 +57,7 @@ In the next attempt at optimization, we merged the two horizontal ghost line fun
 
 The initalisation of the accelerated region was also changed, such that it only copies in, not out. Finally, the integration loops gained an extra level of paralellisation by becoming parallel loop gang vectors instead of just parallel loops. This allows these used to be executed by gangs in vectors.
 
-The results from this implementation can be seen on figure \ref{fig:profiling:secondattempt}
+The results from this implementation can be seen in figure \ref{fig:profiling:secondattempt}
 \begin{figure}[h]
     \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
@@ -69,7 +69,7 @@ The third attempt focused on directing the compiler as to what data is already p
 
 Furthermore, the division of dt/dx and dt/dy in the integration function, was calculated a priori, such that we save those flops.
 
-A profiling of this third attempt can be seen on figure \ref{fig:profiling:thirdattempt}
+A profiling of this third attempt can be seen in figure \ref{fig:profiling:thirdattempt}
 \begin{figure}[h]
     \includegraphics[width=0.5\textwidth]{./figures/sequential_profile.png}
     \centering
@@ -77,7 +77,7 @@ A profiling of this third attempt can be seen on figure \ref{fig:profiling:third
     \label{fig:profiling:thirdattempt}
 \end{figure}
 
-The final attempt laid in only sending water\_history forth and back once between CPU and GPU, as well as paralellising a larger region at once, resulting in us optimising the synchronisation effort between individual GPU loops and the CPU, out of the program. 
+The final attempt laid in only sending water\_history forth and back once between CPU and GPU, as well as parallelising a larger region at once, resulting in us optimising the synchronisation effort between individual GPU loops and the CPU, out of the program. 
 
 \section{Strong and weak scaling using SLURM}
 
