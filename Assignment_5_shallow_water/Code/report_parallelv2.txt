@@ -1,1 +1,85 @@
-elapsed time: 0.607291 secGenerating '/tmp/nsys-report-8b68.qdstrm'Operating System Runtime API Statistics: Time (%)  Total Time (ns)  Num Calls    Avg (ns)       Med (ns)      Min (ns)    Max (ns)     StdDev (ns)        Name      --------  ---------------  ---------  -------------  -------------  ----------  -----------  -------------  --------------     46.4      584,389,084          2  292,194,542.0  292,194,542.0  13,780,202  570,608,882  393,737,335.6  sem_wait           34.1      430,354,277         16   26,897,142.3    8,088,048.5       2,835  100,123,757   36,147,542.5  poll               15.1      190,159,877        573      331,867.2       18,594.0       1,172   33,698,222    1,733,364.8  ioctl               4.0       50,021,542        101      495,262.8        5,570.0       3,717   16,020,687    2,465,889.5  fopen               0.1        1,770,779         27       65,584.4       14,086.0       5,991      995,846      188,318.7  mmap64              0.1        1,280,647          8      160,080.9       51,215.5      36,247      937,227      314,238.2  sem_timedwait       0.1          931,224         18       51,734.7       63,789.0       7,424       82,283       23,789.1  fgets               0.0          468,466         53        8,839.0        8,516.0       4,007       15,439        2,535.6  open64              0.0          382,301          4       95,575.3       96,850.0      48,590      140,011       40,830.2  pthread_create      0.0          198,629         20        9,931.5        7,083.0       2,505       59,721       12,612.7  mmap                0.0          177,137         90        1,968.2        1,823.5       1,313        3,397          441.6  fclose              0.0           40,265          6        6,710.8        7,168.0       4,088        7,975        1,497.6  open                0.0           36,727         14        2,623.4        2,334.0       1,974        4,018          579.6  read                0.0           28,323          3        9,441.0       11,041.0       4,999       12,283        3,896.7  pipe2               0.0           27,052         10        2,705.2        2,775.0       1,102        3,637          684.6  write               0.0           26,048          2       13,024.0       13,024.0       5,500       20,548       10,640.5  socket              0.0           25,598          6        4,266.3        4,564.0       2,514        5,310        1,100.0  munmap              0.0           15,769          4        3,942.3        3,571.5       2,685        5,941        1,490.1  fread               0.0           13,475          1       13,475.0       13,475.0      13,475       13,475            0.0  connect             0.0           13,326         11        1,211.5        1,183.0       1,001        1,462          155.2  fcntl               0.0           12,613          1       12,613.0       12,613.0      12,613       12,613            0.0  fwrite              0.0            9,829          1        9,829.0        9,829.0       9,829        9,829            0.0  fflush              0.0            6,462          1        6,462.0        6,462.0       6,462        6,462            0.0  fopen64             0.0            2,334          1        2,334.0        2,334.0       2,334        2,334            0.0  bind                0.0            1,122          1        1,122.0        1,122.0       1,122        1,122            0.0  listen              0.0            1,072          1        1,072.0        1,072.0       1,072        1,072            0.0  dup           [5/8] Executing 'cudaapisum' stats reportCUDA API Statistics: Time (%)  Total Time (ns)  Num Calls    Avg (ns)      Med (ns)     Min (ns)    Max (ns)   StdDev (ns)          Name         --------  ---------------  ---------  ------------  ------------  ----------  ----------  -----------  --------------------     81.7      228,293,016      8,001      28,533.1       5,450.0       1,122   2,043,459     49,039.8  cuStreamSynchronize      12.6       35,183,540          1  35,183,540.0  35,183,540.0  35,183,540  35,183,540          0.0  cuMemHostAlloc            5.0       13,938,033      4,000       3,484.5       3,436.0       3,175      35,657        594.5  cuLaunchKernel            0.5        1,484,456          1   1,484,456.0   1,484,456.0   1,484,456   1,484,456          0.0  cuMemAllocHost_v2         0.1          325,957          8      40,744.6       2,259.0       1,663     183,031     71,042.8  cuMemAlloc_v2             0.0           72,205          1      72,205.0      72,205.0      72,205      72,205          0.0  cuModuleLoadDataEx        0.0           33,633          3      11,211.0       5,500.0       3,216      24,917     11,924.6  cuMemcpyHtoDAsync_v2      0.0           18,905          7       2,700.7       2,134.0       1,923       6,442      1,656.3  cuEventRecord             0.0           17,812          4       4,453.0       2,804.5       2,334       9,869      3,626.3  cuMemsetD32Async          0.0            4,258          7         608.3         481.0         291       1,643        467.1  cuEventCreate       [6/8] Executing 'gpukernsum' stats reportCUDA Kernel Statistics: Time (%)  Total Time (ns)  Instances  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)                                     Name                                     --------  ---------------  ---------  ---------  ---------  --------  --------  -----------  ---------------------------------------------------------------------------     52.6      109,615,712      1,000  109,615.7  109,505.0   106,945   228,769      3,861.2  _Z17integrate_127_gpuR5Waterffff                                                43.0       89,554,852      1,000   89,554.9   88,961.0    87,616   245,569      6,757.3  _Z17integrate_135_gpuR5Waterffff                                                 2.6        5,406,627      1,000    5,406.6    5,408.0     4,768     7,200        160.7  _Z37exchange_vertical_ghost_lines_109_gpuRSt5arrayIS_IfLm1024EELm1024EES2_       1.9        3,858,386      1,000    3,858.4    3,840.0     3,232     4,928        126.7  _Z38exchange_horizontal_ghost_lines_93_gpuRSt5arrayIS_IfLm1024EELm1024EES2_[7/8] Executing 'gpumemtimesum' stats reportCUDA Memory Operation Statistics (by time): Time (%)  Total Time (ns)  Count  Avg (ns)   Med (ns)  Min (ns)  Max (ns)   StdDev (ns)      Operation      --------  ---------------  -----  ---------  --------  --------  ---------  -----------  ------------------     99.7        2,170,187      3  723,395.7   2,944.0     2,912  2,164,331  1,247,886.6  [CUDA memcpy HtoD]      0.3            5,920      4    1,480.0   1,440.0     1,408      1,632        102.4  [CUDA memset]     [8/8] Executing 'gpumemsizesum' stats reportCUDA Memory Operation Statistics (by size): Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)      Operation      ----------  -----  --------  --------  --------  --------  -----------  ------------------     12.583      3     4.194     0.000     0.000    12.583        7.265  [CUDA memcpy HtoD]      0.000      4     0.000     0.000     0.000     0.000        0.000  [CUDA memset]     Generated:    /home/jovyan/erda_mount/HPPC/HPPC_repo/Assignment_5_shallow_water/Code/report5.nsys-rep    /home/jovyan/erda_mount/HPPC/HPPC_repo/Assignment_5_shallow_water/Code/report5.sqlite
+elapsed time: 0.607291 sec
+Generating '/tmp/nsys-report-8b68.qdstrm'
+
+
+
+Operating System Runtime API Statistics:
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)       Med (ns)      Min (ns)    Max (ns)     StdDev (ns)        Name     
+ --------  ---------------  ---------  -------------  -------------  ----------  -----------  -------------  --------------
+     46.4      584,389,084          2  292,194,542.0  292,194,542.0  13,780,202  570,608,882  393,737,335.6  sem_wait      
+     34.1      430,354,277         16   26,897,142.3    8,088,048.5       2,835  100,123,757   36,147,542.5  poll          
+     15.1      190,159,877        573      331,867.2       18,594.0       1,172   33,698,222    1,733,364.8  ioctl         
+      4.0       50,021,542        101      495,262.8        5,570.0       3,717   16,020,687    2,465,889.5  fopen         
+      0.1        1,770,779         27       65,584.4       14,086.0       5,991      995,846      188,318.7  mmap64        
+      0.1        1,280,647          8      160,080.9       51,215.5      36,247      937,227      314,238.2  sem_timedwait 
+      0.1          931,224         18       51,734.7       63,789.0       7,424       82,283       23,789.1  fgets         
+      0.0          468,466         53        8,839.0        8,516.0       4,007       15,439        2,535.6  open64        
+      0.0          382,301          4       95,575.3       96,850.0      48,590      140,011       40,830.2  pthread_create
+      0.0          198,629         20        9,931.5        7,083.0       2,505       59,721       12,612.7  mmap          
+      0.0          177,137         90        1,968.2        1,823.5       1,313        3,397          441.6  fclose        
+      0.0           40,265          6        6,710.8        7,168.0       4,088        7,975        1,497.6  open          
+      0.0           36,727         14        2,623.4        2,334.0       1,974        4,018          579.6  read          
+      0.0           28,323          3        9,441.0       11,041.0       4,999       12,283        3,896.7  pipe2         
+      0.0           27,052         10        2,705.2        2,775.0       1,102        3,637          684.6  write         
+      0.0           26,048          2       13,024.0       13,024.0       5,500       20,548       10,640.5  socket        
+      0.0           25,598          6        4,266.3        4,564.0       2,514        5,310        1,100.0  munmap        
+      0.0           15,769          4        3,942.3        3,571.5       2,685        5,941        1,490.1  fread         
+      0.0           13,475          1       13,475.0       13,475.0      13,475       13,475            0.0  connect       
+      0.0           13,326         11        1,211.5        1,183.0       1,001        1,462          155.2  fcntl         
+      0.0           12,613          1       12,613.0       12,613.0      12,613       12,613            0.0  fwrite        
+      0.0            9,829          1        9,829.0        9,829.0       9,829        9,829            0.0  fflush        
+      0.0            6,462          1        6,462.0        6,462.0       6,462        6,462            0.0  fopen64       
+      0.0            2,334          1        2,334.0        2,334.0       2,334        2,334            0.0  bind          
+      0.0            1,122          1        1,122.0        1,122.0       1,122        1,122            0.0  listen        
+      0.0            1,072          1        1,072.0        1,072.0       1,072        1,072            0.0  dup           
+
+[5/8] Executing 'cudaapisum' stats report
+
+CUDA API Statistics:
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)      Med (ns)     Min (ns)    Max (ns)   StdDev (ns)          Name        
+ --------  ---------------  ---------  ------------  ------------  ----------  ----------  -----------  --------------------
+     81.7      228,293,016      8,001      28,533.1       5,450.0       1,122   2,043,459     49,039.8  cuStreamSynchronize 
+     12.6       35,183,540          1  35,183,540.0  35,183,540.0  35,183,540  35,183,540          0.0  cuMemHostAlloc      
+      5.0       13,938,033      4,000       3,484.5       3,436.0       3,175      35,657        594.5  cuLaunchKernel      
+      0.5        1,484,456          1   1,484,456.0   1,484,456.0   1,484,456   1,484,456          0.0  cuMemAllocHost_v2   
+      0.1          325,957          8      40,744.6       2,259.0       1,663     183,031     71,042.8  cuMemAlloc_v2       
+      0.0           72,205          1      72,205.0      72,205.0      72,205      72,205          0.0  cuModuleLoadDataEx  
+      0.0           33,633          3      11,211.0       5,500.0       3,216      24,917     11,924.6  cuMemcpyHtoDAsync_v2
+      0.0           18,905          7       2,700.7       2,134.0       1,923       6,442      1,656.3  cuEventRecord       
+      0.0           17,812          4       4,453.0       2,804.5       2,334       9,869      3,626.3  cuMemsetD32Async    
+      0.0            4,258          7         608.3         481.0         291       1,643        467.1  cuEventCreate       
+
+[6/8] Executing 'gpukernsum' stats report
+
+CUDA Kernel Statistics:
+
+ Time (%)  Total Time (ns)  Instances  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)                                     Name                                    
+ --------  ---------------  ---------  ---------  ---------  --------  --------  -----------  ---------------------------------------------------------------------------
+     52.6      109,615,712      1,000  109,615.7  109,505.0   106,945   228,769      3,861.2  _Z17integrate_127_gpuR5Waterffff                                           
+     43.0       89,554,852      1,000   89,554.9   88,961.0    87,616   245,569      6,757.3  _Z17integrate_135_gpuR5Waterffff                                           
+      2.6        5,406,627      1,000    5,406.6    5,408.0     4,768     7,200        160.7  _Z37exchange_vertical_ghost_lines_109_gpuRSt5arrayIS_IfLm1024EELm1024EES2_ 
+      1.9        3,858,386      1,000    3,858.4    3,840.0     3,232     4,928        126.7  _Z38exchange_horizontal_ghost_lines_93_gpuRSt5arrayIS_IfLm1024EELm1024EES2_
+
+[7/8] Executing 'gpumemtimesum' stats report
+
+CUDA Memory Operation Statistics (by time):
+
+ Time (%)  Total Time (ns)  Count  Avg (ns)   Med (ns)  Min (ns)  Max (ns)   StdDev (ns)      Operation     
+ --------  ---------------  -----  ---------  --------  --------  ---------  -----------  ------------------
+     99.7        2,170,187      3  723,395.7   2,944.0     2,912  2,164,331  1,247,886.6  [CUDA memcpy HtoD]
+      0.3            5,920      4    1,480.0   1,440.0     1,408      1,632        102.4  [CUDA memset]     
+
+[8/8] Executing 'gpumemsizesum' stats report
+
+CUDA Memory Operation Statistics (by size):
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)      Operation     
+ ----------  -----  --------  --------  --------  --------  -----------  ------------------
+     12.583      3     4.194     0.000     0.000    12.583        7.265  [CUDA memcpy HtoD]
+      0.000      4     0.000     0.000     0.000     0.000        0.000  [CUDA memset]     
+
+Generated:
+    /home/jovyan/erda_mount/HPPC/HPPC_repo/Assignment_5_shallow_water/Code/report5.nsys-rep
+    /home/jovyan/erda_mount/HPPC/HPPC_repo/Assignment_5_shallow_water/Code/report5.sqlite
