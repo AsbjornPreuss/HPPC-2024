@@ -172,6 +172,7 @@ void integrate(World& world) {
  * @return         A new world based on the HDF5 file.
  */
 World read_world_model(const std::string& filename) {
+    //std::cout << filename << std::endl;
     H5::H5File file(filename, H5F_ACC_RDONLY);
     H5::DataSet dataset = file.openDataSet("world");
     H5::DataSpace dataspace = dataset.getSpace();
@@ -244,13 +245,27 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     MPI_Cart_shift(cart_comm, 1, 1, &nleft, &nright);
     MPI_Cart_shift(cart_comm, 0, 1, &nbottom, &ntop);
     
-    std::cout << "rank: " << mpi_rank << " nleft: " << coords[0] << " nright: " << coords[1] << std::endl;
     // figure out size of domain for this rank
-    const long int offset_longitude = global_world.longitude*coords[1]-1; // -1 because first cell is a ghostcell
-    const long int offset_latitude  = global_world.latitude*coords[0]-1;
+    const long int offset_longitude = global_world.longitude*coords[1]/nproc_lon-1; // -1 because first cell is a ghostcell
+    const long int offset_latitude  = global_world.latitude*coords[0]/nproc_lat-1;
 
-    const uint64_t longitude = global_world.longitude + 2; // one ghost cell on each end
-    const uint64_t latitude  = global_world.latitude  + 2;
+    const uint64_t longitude = global_world.longitude/nproc_lon + 2; // one ghost cell on each end
+    const uint64_t latitude  = global_world.latitude/nproc_lat  + 2;
+    MPI_Datatype sub_world_recv_type;
+    MPI_Type_vector(longitude-2,
+		    latitude-2,
+		    global_world.longitude,
+		    MPI_DOUBLE,
+		    &sub_world_recv_type);
+    MPI_Type_commit(&sub_world_recv_type);
+
+    MPI_Datatype sub_world_send_type;
+    MPI_Type_vector(longitude-2,
+		    latitude-2,
+		    longitude,
+		    MPI_DOUBLE,
+		    &sub_world_send_type);
+    MPI_Type_commit(&sub_world_send_type);
 
     // copy over albedo data to local world data
     std::vector<double> albedo(longitude*latitude);
@@ -278,13 +293,24 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
 
         // TODO: gather the Temperature on rank zero
         // remove ghostzones and construct global data from local data
-        for (uint64_t i = 1; i < latitude-1; ++i)
+        /*for (uint64_t i = 1; i < latitude-1; ++i)
         for (uint64_t j = 1; j < longitude-1; ++j) {
             uint64_t k_global = (i + offset_latitude) * global_world.longitude
                               + (j + offset_longitude);
             global_world.data[k_global] = world.data[i * longitude + j];
-        }
+        }*/
+	int displs[mpi_size];
+	int amount[mpi_size];
 
+	int disp_coords[2];
+	for (int i = 0; i< mpi_size; i++){
+    		MPI_Cart_coords(cart_comm, i, 2, disp_coords);
+		displs[i] =  disp_coords[1]*(longitude-2)+ disp_coords[0]*(latitude -2);
+		amount[i] = 1;
+	}	
+	MPI_Gatherv(&world.data[longitude+1], 1, sub_world_send_type,
+		&global_world.data[0], amount, displs ,sub_world_recv_type, 0,MPI_COMM_WORLD);
+	
         if (!output_filename.empty()) {
             // Only rank zero writes water history to file
             if (mpi_rank == 0) {
@@ -299,6 +325,8 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     stat(world);
     std::cout << "checksum      : " << checksum(world) << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
+    MPI_Type_free(&sub_world_recv_type);
+    MPI_Type_free(&sub_world_send_type);
 }
 
 /** Main function that parses the command line and start the simulation */
@@ -326,7 +354,6 @@ int main(int argc, char **argv) {
     std::string model_filename;
     std::string output_filename;
 
-    if (mpi_rank == 0) {
     std::vector <std::string> argument({argv, argv+argc});
 
     for (long unsigned int i = 1; i<argument.size() ; i += 2){
@@ -355,7 +382,6 @@ int main(int argc, char **argv) {
     if (iterations==0)
         throw std::invalid_argument("You must specify the number of iterations "
                                     "(e.g. --iter 10)");
-    }
     simulate(iterations, model_filename, output_filename);
 
     MPI_Finalize();

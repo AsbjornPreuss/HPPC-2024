@@ -2,7 +2,7 @@
 #SBATCH --job-name=FWC
 #SBATCH --partition=modi_HPPC
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
+#SBATCH --ntasks=4
 ##SBATCH --exclusive
 
 mpiexec apptainer exec \
