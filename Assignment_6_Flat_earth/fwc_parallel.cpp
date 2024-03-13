@@ -12,6 +12,8 @@ int mpi_size;
 // Get the rank of the process
 int mpi_rank;
 
+int nproc_lat, nproc_lon;
+
 /** Representation of a flat world */
 class World {
 public:
@@ -228,11 +230,25 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
 
     // for simplicity, read in full model
     World global_world = read_world_model(model_filename);
+    nproc_lon = mpi_size;
+    nproc_lat = 1;
+    int dims[2] = {nproc_lat, nproc_lon};
+    int periods[2] = {1, 1};
+    int coords[2];
+    MPI_Dims_create(mpi_size, 2, dims);
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
+    MPI_Cart_coords(cart_comm, mpi_rank, 2, coords);
 
-    // TODO: compute offsets according to rank and domain decomposition
+    int nleft, nright, nbottom, ntop;
+    MPI_Cart_shift(cart_comm, 1, 1, &nleft, &nright);
+    MPI_Cart_shift(cart_comm, 0, 1, &nbottom, &ntop);
+    
+    std::cout << "rank: " << mpi_rank << " nleft: " << coords[0] << " nright: " << coords[1] << std::endl;
     // figure out size of domain for this rank
-    const long int offset_longitude = -1; // -1 because first cell is a ghostcell
-    const long int offset_latitude  = -1;
+    const long int offset_longitude = global_world.longitude*coords[1]-1; // -1 because first cell is a ghostcell
+    const long int offset_latitude  = global_world.latitude*coords[0]-1;
+
     const uint64_t longitude = global_world.longitude + 2; // one ghost cell on each end
     const uint64_t latitude  = global_world.latitude  + 2;
 
@@ -310,6 +326,7 @@ int main(int argc, char **argv) {
     std::string model_filename;
     std::string output_filename;
 
+    if (mpi_rank == 0) {
     std::vector <std::string> argument({argv, argv+argc});
 
     for (long unsigned int i = 1; i<argument.size() ; i += 2){
@@ -338,7 +355,7 @@ int main(int argc, char **argv) {
     if (iterations==0)
         throw std::invalid_argument("You must specify the number of iterations "
                                     "(e.g. --iter 10)");
-
+    }
     simulate(iterations, model_filename, output_filename);
 
     MPI_Finalize();
