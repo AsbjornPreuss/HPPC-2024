@@ -51,6 +51,7 @@ public:
 
 double checksum(World &world) {
     // 
+    double check = 0;
     double cs=0;
     // TODO: make sure checksum is computed globally
     // only loop *inside* data region -- not in ghostzones!
@@ -58,7 +59,8 @@ double checksum(World &world) {
     for (uint64_t j = 1; j < world.longitude - 1; ++j) {
         cs += world.data[i*world.longitude + j];
     }
-    return cs;
+    MPI_Reduce(&cs,&check,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+    return check;
 }
 
 void stat(World &world) {
@@ -368,11 +370,12 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
         MPI_Barrier(cart_comm);
         
     }
+    double check = checksum(world);
     if (mpi_rank==0){
     auto end = std::chrono::steady_clock::now();
     
     stat(global_world);
-    std::cout << "checksum      : " << checksum(global_world) << std::endl;
+    std::cout << "checksum      : " << check << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
     }
     MPI_Type_free(&horiz_type);
