@@ -204,7 +204,7 @@ World read_world_model(const std::string& filename) {
     dataspace.getSimpleExtentDims(dims, NULL);
     std::vector<double> data_out(dims[0] * dims[1]);
     dataset.read(data_out.data(), H5::PredType::NATIVE_DOUBLE, dataspace, dataspace);
-    std::cout << "World model loaded -- latitude: " << (unsigned long) (dims[0]) << ", longitude: "
+    if(verbose) std::cout << "World model loaded -- latitude: " << (unsigned long) (dims[0]) << ", longitude: "
               << (unsigned long) (dims[1]) << std::endl;
     return World(static_cast<uint64_t>(dims[0]), static_cast<uint64_t>(dims[1]), 293.15, std::move(data_out));
 }
@@ -371,23 +371,34 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
             // Only rank zero writes water history to file
             if (mpi_rank == 0) {
                 write_hdf5(global_world, output_filename, iteration);
-                std::cout << iteration << " -- ";
                 
             }
-            stat(world, cart_comm);
+            if(verbose) stat(world, cart_comm);
         }
         // Wait for everyone to get here
         MPI_Barrier(cart_comm);
         
     }
     double check = checksum(world);
-    stat(world, cart_comm);
+    if(verbose) stat(world, cart_comm);
 
     if (mpi_rank==0){
     auto end = std::chrono::steady_clock::now();
-    
+    if(verbose){
     std::cout << "checksum      : " << check << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
+    }
+    else{
+        int version;
+        if(global_world.longitude==360)
+            version=0;
+        if(global_world.longitude==3600)
+            version=1;
+        if(global_world.longitude==7200)
+            version=2;
+        
+        std::cout << check << " " << mpi_size << " " << nproc_lon << " " << nproc_lat << " " << (end - begin).count() / 1000000000.0 << " " << version;
+    }
     }
     MPI_Type_free(&horiz_type);
     MPI_Type_free(&vert_type);
@@ -411,7 +422,7 @@ int main(int argc, char **argv) {
     MPI_Get_processor_name(processor_name, &name_len);
 
     // Print off a hello world message
-    std::cout << "Flat World Climate running on " << processor_name
+    if(verbose) std::cout << "Flat World Climate running on " << processor_name
               << ", rank " << mpi_rank << " out of " << mpi_size << std::endl;
 
     uint64_t iterations=0;
