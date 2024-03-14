@@ -249,7 +249,10 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
 
     // Define number of ranks in each direction
     nproc_lon = int(sqrt(mpi_size));
-    nproc_lat = int(sqrt(mpi_size));
+    while (mpi_size%nproc_lon!=0) {
+        nproc_lon = nproc_lon-1;
+    }
+    nproc_lat = mpi_size/nproc_lon;
     if(mpi_rank==0&&verbose) std::cout << nproc_lon << " " << nproc_lat<<std::endl;
     
     // Set up cartesian topology 
