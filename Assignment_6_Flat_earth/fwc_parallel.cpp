@@ -315,6 +315,22 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     MPI_Datatype sendtypes[4] = {vert_type, vert_type, horiz_type, horiz_type};
     MPI_Datatype recvtypes[4] = {vert_type, vert_type, horiz_type, horiz_type};
 
+    // Define gather_counts and gather_disp, to be used when gathering all data onto rank 0 for writing out. 
+    int gather_counts[mpi_size];
+    int gather_disp[mpi_size];
+    int temp_disp = 0;
+    
+    for(int rank=0;rank<mpi_size;rank++){
+        const int add =(global_world.latitude*(rank/nproc_lat+1)/nproc_lat-global_world.latitude*(rank/nproc_lat)/nproc_lat)*(global_world.longitude*(rank%nproc_lon+1)/nproc_lon-
+global_world.longitude*(rank%nproc_lon)/nproc_lon);
+        gather_counts[rank] = add;
+
+        const int rank_disp = temp_disp;
+        gather_disp[rank] = rank_disp;
+        
+        temp_disp += add;
+        //if(mpi_rank==0) std::cout << rank << "  " <<gather_counts[rank] <<", " << gather_disp[rank] << std::endl;
+    }
     
     // ==============================================================================
     // BEGIN SIMULATION
@@ -336,7 +352,8 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
                 if (i < longitude || i > (latitude-1)*longitude) continue;
                 world_WO_ghost.push_back( world.data[i]);
         }
-        MPI_Gather(world_WO_ghost.data(), world_WO_ghost.size(), MPI_DOUBLE, global_world.data.data(), world_WO_ghost.size(), MPI_DOUBLE, 0,MPI_COMM_WORLD);
+        if(verbose&&iteration==0)std::cout << "Rank" << mpi_rank << ", " <<world_WO_ghost.size();
+        MPI_Gatherv(world_WO_ghost.data(), world_WO_ghost.size(), MPI_DOUBLE, global_world.data.data(), gather_counts,gather_disp, MPI_DOUBLE, 0,MPI_COMM_WORLD);
         
         
        if (!output_filename.empty()) {
