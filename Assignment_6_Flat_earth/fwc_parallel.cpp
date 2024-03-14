@@ -63,18 +63,27 @@ double checksum(World &world) {
     return check;
 }
 
-void stat(World &world) {
+void stat(World &world, MPI_Comm comm) {
     // TODO: make sure stats are computed globally
+    double mint_local = 1e99;
+    double maxt_local = 0;
+    double meant_local = 0;
     double mint = 1e99;
     double maxt = 0;
     double meant = 0;
+    
     for (uint64_t i = 1; i < world.latitude - 1; ++i)
     for (uint64_t j = 1; j < world.longitude - 1; ++j) {
-        mint = std::min(mint,world.data[i*world.longitude + j]);
-        maxt = std::max(maxt,world.data[i*world.longitude + j]);
-        meant += world.data[i*world.longitude + j];
+        mint_local = std::min(mint_local,world.data[i*world.longitude + j]);
+        maxt_local = std::max(maxt_local,world.data[i*world.longitude + j]);
+        meant_local += world.data[i*world.longitude + j];
+    
     }
+    MPI_Reduce(&mint_local, &mint,1, MPI_DOUBLE, MPI_MIN, 0, comm);
+    MPI_Reduce(&maxt_local, &maxt,1, MPI_DOUBLE, MPI_MAX, 0, comm);
+    MPI_Reduce(&meant_local, &meant,1, MPI_DOUBLE, MPI_SUM, 0, comm);
     meant = meant / (world.global_latitude * world.global_longitude);
+    if (mpi_rank==0)
     std::cout <<   "min: " << mint
               << ", max: " << maxt
               << ", avg: " << meant << std::endl;
@@ -363,7 +372,7 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
             if (mpi_rank == 0) {
                 write_hdf5(global_world, output_filename, iteration);
                 std::cout << iteration << " -- ";
-                stat(global_world);
+                stat(world, cart_comm);
             }
         }
         // Wait for everyone to get here
@@ -374,7 +383,7 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
     if (mpi_rank==0){
     auto end = std::chrono::steady_clock::now();
     
-    stat(global_world);
+    stat(world, cart_comm);
     std::cout << "checksum      : " << check << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
     }
