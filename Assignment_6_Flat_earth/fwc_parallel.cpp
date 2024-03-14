@@ -5,7 +5,7 @@
 #include <cmath>
 #include <numeric>
 #include <mpi.h>
-
+bool verbose = false;
 // Get the number of processes
 int mpi_size;
 
@@ -82,8 +82,9 @@ void stat(World &world) {
  *
  * @param world  The world to fix the boundaries for.
  */
-void exchange_ghost_cells(World &world) {
+void exchange_ghost_cells(World &world,MPI_Aint &sdispls, MPI_Aint &rdispls, MPI_Datatype &sendtypes, MPI_Datatype &recvtypes, MPI_Comm cart_comm) {
     // TODO: figure out exchange of ghost cells bewteen ranks
+    /*
     for (uint64_t i = 0; i < world.latitude; ++i) {
         world.data[i*world.longitude + 0] = world.data[i*world.longitude + world.longitude-2];
         world.data[i*world.longitude + world.longitude-1] = world.data[i*world.longitude + 1];
@@ -92,14 +93,17 @@ void exchange_ghost_cells(World &world) {
     for (uint64_t j = 0; j < world.longitude; ++j) {
         world.data[0*world.longitude + j] = world.data[(world.latitude-2)*world.longitude + j];
         world.data[(world.latitude-1)*world.longitude + j] = world.data[1*world.longitude + j];
-    }
+    }*/
+    int counts[4] = {1,1,1,1};
+    MPI_Neighbor_alltoallw (&world.data.data()[0], counts,  &sdispls, &sendtypes,
+                            &world.data.data()[0], counts,  &rdispls, &recvtypes, cart_comm);
 }
 
 /** Warm the world based on the position of the sun.
  *
  * @param world      The world to warm.
  */
-void radiation(World& world) {
+void radiation(World& world,MPI_Aint &sdispls, MPI_Aint &rdispls, MPI_Datatype &sendtypes, MPI_Datatype &recvtypes, MPI_Comm cart_comm) {
     double sun_angle = std::cos(world.time);
     double sun_intensity = 865.0;
     double sun_long = (std::sin(sun_angle) * (world.global_longitude / 2))
@@ -120,7 +124,7 @@ void radiation(World& world) {
                 (sun_intensity / dist) * (1. - world.albedo_data[i * world.longitude + j]);
         }
     }
-    exchange_ghost_cells(world);
+    exchange_ghost_cells(world, sdispls, rdispls, sendtypes, recvtypes, cart_comm);
 }
 
 /** Heat radiated to space
@@ -137,7 +141,7 @@ void energy_emmision(World& world) {
  *
  * @param world  The world to update.
  */
-void diffuse(World& world) {
+void diffuse(World& world,MPI_Aint &sdispls, MPI_Aint &rdispls, MPI_Datatype &sendtypes, MPI_Datatype &recvtypes, MPI_Comm cart_comm) {
     std::vector<double> tmp = world.data;
     for (uint64_t k = 0; k < 10; ++k) {
         for (uint64_t i = 1; i < world.latitude - 1; ++i) {
@@ -152,7 +156,7 @@ void diffuse(World& world) {
             }
         }
         std::swap(world.data, tmp);  // swap pointers for the two arrays
-        exchange_ghost_cells(world); // update ghost zones
+        exchange_ghost_cells(world, sdispls, rdispls, sendtypes, recvtypes, cart_comm); // update ghost zones
     }
 }
 
@@ -160,10 +164,10 @@ void diffuse(World& world) {
  *
  * @param world      The world to update.
  */
-void integrate(World& world) {
-    radiation(world);
+void integrate(World& world,MPI_Aint &sdispls, MPI_Aint &rdispls, MPI_Datatype &sendtypes, MPI_Datatype &recvtypes, MPI_Comm cart_comm) {
+    radiation(world, sdispls, rdispls, sendtypes, recvtypes, cart_comm);
     energy_emmision(world);
-    diffuse(world);
+    diffuse(world, sdispls, rdispls, sendtypes, recvtypes, cart_comm);
 }
 
 /** Read a world model from a HDF5 file
@@ -230,10 +234,14 @@ void write_hdf5(const World& world, const std::string& filename, uint64_t iterat
 void simulate(uint64_t num_of_iterations, const std::string& model_filename, const std::string& output_filename) {
 
     // for simplicity, read in full model
-    World global_world = read_world_model(model_filename);
-    double global_world_copy [global_world.longitude*global_world.latitude];
-    nproc_lon = mpi_size;
-    nproc_lat = 1;
+    World global_world = read_world_model(model_filename); 
+
+    // Define number of ranks in each direction
+    nproc_lon = int(sqrt(mpi_size));
+    nproc_lat = int(sqrt(mpi_size));
+    if(mpi_rank==0&&verbose) std::cout << nproc_lon << " " << nproc_lat<<std::endl;
+    
+    // Set up cartesian topology 
     int dims[2] = {nproc_lat, nproc_lon};
     int periods[2] = {1, 1};
     int coords[2];
@@ -247,12 +255,20 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     MPI_Cart_shift(cart_comm, 0, 1, &nbottom, &ntop);
     
     // figure out size of domain for this rank
+    //// Domain start point offset
     const long int offset_longitude = global_world.longitude*coords[1]/nproc_lon-1; // -1 because first cell is a ghostcell
     const long int offset_latitude  = global_world.latitude*coords[0]/nproc_lat-1;
 
-    const uint64_t longitude = global_world.longitude/nproc_lon + 2; // one ghost cell on each end
-    const uint64_t latitude  = global_world.latitude/nproc_lat  + 2;
+    //// Domain end point
+    const long int end_longitude = global_world.longitude*(coords[1]+1)/nproc_lon+1;
+    const long int end_latitude  = global_world.latitude*(coords[0]+1)/nproc_lat+1;
 
+    //// Domain size
+    const uint64_t longitude = end_longitude-offset_longitude;//global_world.longitude/nproc_lon + 2; // one ghost cell on each end
+    const uint64_t latitude  = end_latitude -offset_latitude ;//global_world.latitude/nproc_lat  + 2;
+    if(verbose) std::cout << "Rank" << mpi_rank << ", " << longitude << " " << latitude << std::endl;
+    
+    
     // copy over albedo data to local world data
     std::vector<double> albedo(longitude*latitude);
     for (uint64_t i = 1; i < latitude-1; ++i)
@@ -271,58 +287,57 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
 
     // set up counters and loop for num_iterations of integration steps
     const double delta_time = world.global_longitude / 36.0;
-    // ==============================================================================
-    // BEGIN SIMULATION
-    // ==============================================================================
 
-    int array_sizes[] = {(longitude-2)*(latitude-2)};
+    // Define subarray types for ghost cell exchanges
+    const int array_sizes[] = {(latitude),(longitude)};
     // send subarrays
-    int subarray_sizes_x[] = {latitude};
-    int subarray_horiz_start[] = {0};
+    int subarray_sizes_x[] = {latitude-2,1};
+    int subarray_horiz_start[] = {1,0};
     MPI_Datatype horiz_type;
-    MPI_Type_create_subarray (1, array_sizes, subarray_sizes_x, subarray_horiz_start,
+    MPI_Type_create_subarray (2, array_sizes, subarray_sizes_x, subarray_horiz_start,
                             MPI_ORDER_C, MPI_DOUBLE, &horiz_type);
     MPI_Type_commit(&horiz_type);
 
-    int subarray_sizes_y[] = {longitude};
-    int subarray_vert_start[] = {0};
+    int subarray_sizes_y[] = {1,longitude-2};
+    int subarray_vert_start[] = {0,1};
     MPI_Datatype vert_type;
-    MPI_Type_create_subarray (1, array_sizes, subarray_sizes_y, subarray_vert_start,
+    MPI_Type_create_subarray (2, array_sizes, subarray_sizes_y, subarray_vert_start,
                             MPI_ORDER_C, MPI_DOUBLE, &vert_type);
     MPI_Type_commit(&vert_type);
 
-    // displacements are from top left corner of the world
-    MPI_Aint sdispls[4] = {(longitude-1)*(latitude-1)*8, // bottom row is longitude*(latitude-1) from start
-                        longitude*8, // top row is longitude + 1 from start
-                        1 * 8,                 // left column is one to the right of start
-                        (longitude -1)* 8};                // right column is longitude right of start
-
-    MPI_Aint rdispls[4] = {(longitude-1)*(latitude)*8,    // bottom ghost row starts at at the last lat run
-                        0,                              // top ghost row starts at 0
-                        0,                                // left ghost column is 0 right of start
-                        (longitude)*8};                  // right ghost row is jsize+nhalo right of start
+    // Define displacements of send and receive in bottom top left right.
+    MPI_Aint sdispls[4] = { longitude * 8,
+                            ( latitude - 2 ) * longitude * 8,
+                            8,
+                            (longitude - 2 ) * 8};
+    MPI_Aint rdispls[4] = {0,(latitude-1)*longitude*8,0,(longitude-1)*8};
+    
     MPI_Datatype sendtypes[4] = {vert_type, vert_type, horiz_type, horiz_type};
     MPI_Datatype recvtypes[4] = {vert_type, vert_type, horiz_type, horiz_type};
+
+    
     // ==============================================================================
     // BEGIN SIMULATION
     // ==============================================================================
+    
+
     auto begin = std::chrono::steady_clock::now();
     for (uint64_t iteration=0; iteration < num_of_iterations; ++iteration) {
+        // Get current time
         world.time = iteration / delta_time;
-        integrate(world);
 
-        // TODO: gather the Temperature on rank zero
-        // remove ghostzones and construct global data from local data
-
-            
+        // Do integration
+        integrate(world, *sdispls, *rdispls, *sendtypes, *recvtypes,cart_comm);
+        
+        // Gather all the data on rank 0 so it can be written to a file
         std::vector <double> world_WO_ghost; // World_WithOut_ghost cells
         for (int i = 0; i<(latitude)*(longitude); i++){
                 if (i%longitude == 0 || i%longitude == longitude -1){continue;}
                 if (i < longitude || i > (latitude-1)*longitude) continue;
                 world_WO_ghost.push_back( world.data[i]);
         }
-    
-        MPI_Gather(world_WO_ghost.data(), world_WO_ghost.size(), MPI_DOUBLE, global_world.data.data(), world_WO_ghost.size(), MPI_DOUBLE, 0,cart_comm);
+        MPI_Gather(world_WO_ghost.data(), world_WO_ghost.size(), MPI_DOUBLE, global_world.data.data(), world_WO_ghost.size(), MPI_DOUBLE, 0,MPI_COMM_WORLD);
+        
         
        if (!output_filename.empty()) {
             // Only rank zero writes water history to file
@@ -332,18 +347,19 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
                 stat(global_world);
             }
         }
-        // Exchange ghost cells
-        int counts[4] = {1,1,1,1};
-        MPI_Neighbor_alltoallw (&world.data.data()[0], counts,  sdispls, sendtypes,
-                              &world.data.data()[1], counts,  rdispls, recvtypes, cart_comm);
+        // Wait for everyone to get here
+        MPI_Barrier(cart_comm);
+        
     }
     if (mpi_rank==0){
     auto end = std::chrono::steady_clock::now();
     
-    stat(world);
+    stat(global_world);
     std::cout << "checksum      : " << checksum(global_world) << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
     }
+    MPI_Type_free(&horiz_type);
+    MPI_Type_free(&vert_type);
 }
 
 /** Main function that parses the command line and start the simulation */
