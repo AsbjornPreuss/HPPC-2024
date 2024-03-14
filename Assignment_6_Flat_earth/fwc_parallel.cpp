@@ -372,18 +372,20 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
             if (mpi_rank == 0) {
                 write_hdf5(global_world, output_filename, iteration);
                 std::cout << iteration << " -- ";
-                stat(world, cart_comm);
+                
             }
+            stat(world, cart_comm);
         }
         // Wait for everyone to get here
         MPI_Barrier(cart_comm);
         
     }
     double check = checksum(world);
+    stat(world, cart_comm);
+
     if (mpi_rank==0){
     auto end = std::chrono::steady_clock::now();
     
-    stat(world, cart_comm);
     std::cout << "checksum      : " << check << std::endl;
     std::cout << "elapsed time  : " << (end - begin).count() / 1000000000.0 << " sec" << std::endl;
     }
