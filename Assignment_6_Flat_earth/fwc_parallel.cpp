@@ -248,12 +248,47 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     World global_world = read_world_model(model_filename); 
 
     // Define number of ranks in each direction
-    nproc_lon = int(sqrt(mpi_size));
-    while (mpi_size%nproc_lon!=0) {
-        nproc_lon = nproc_lon-1;
-    }
+    // Closest possible to square regions
+    nproc_lon = int(sqrt(global_world.longitude*mpi_size/global_world.latitude));
     nproc_lat = mpi_size/nproc_lon;
-    if(mpi_rank==0&&verbose) std::cout << nproc_lon << " " << nproc_lat<<std::endl;
+    int scan_direction = ((nproc_lon+1)*(nproc_lat-1) > nproc_lon*nproc_lat) ? 1:-1;
+
+    //Should nproc_lon be larger than nproc_lat?
+    if (global_world.longitude>global_world.latitude) {
+    while (mpi_size%nproc_lon != 0){
+	nproc_lon += scan_direction;
+	//Check if passed midpoint
+	
+	if (nproc_lon*nproc_lon < mpi_size) {
+		//Start over and change direction
+    		nproc_lon = int(sqrt(global_world.longitude*mpi_size/global_world.latitude));
+    		//if (mpi_rank == 0) std::cout << nproc_lon << std::endl;
+		scan_direction *= -1;
+		while (mpi_size%nproc_lon != 0) {
+			nproc_lon += scan_direction;
+    			//if (mpi_rank == 0) std::cout << nproc_lon << std::endl;
+		}
+		break;
+	}
+	}
+    } else {
+    while (mpi_size%nproc_lon != 0){
+	nproc_lon += scan_direction;
+	//Check if passed midpoint
+	if (nproc_lon*nproc_lon < mpi_size) {
+		//Start over and change direction
+    		nproc_lon = int(sqrt(global_world.latitude*mpi_size/global_world.longitude));
+		scan_direction *= -1;
+		while (mpi_size%nproc_lon != 0) {
+			nproc_lon += scan_direction;
+		}
+		break;
+	}
+    }
+    }
+    nproc_lat = mpi_size/nproc_lon;	
+
+    if(mpi_rank==0&&verbose) std::cout << "NLON: " << nproc_lon << ", NLAT: " << nproc_lat<<std::endl;
     
     // Set up cartesian topology 
     int dims[2] = {nproc_lat, nproc_lon};
@@ -280,7 +315,7 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     //// Domain size
     const uint64_t longitude = end_longitude-offset_longitude;//global_world.longitude/nproc_lon + 2; // one ghost cell on each end
     const uint64_t latitude  = end_latitude -offset_latitude ;//global_world.latitude/nproc_lat  + 2;
-    if(verbose) std::cout << "Rank" << mpi_rank << ", " << longitude << " " << latitude << std::endl;
+    if (verbose) std::cout << "Rank" << mpi_rank << ", LON: " << longitude << " LAT: " << latitude << std::endl;
     
     
     // copy over albedo data to local world data
@@ -332,12 +367,24 @@ void simulate(uint64_t num_of_iterations, const std::string& model_filename, con
     // Define gather_counts and gather_disp, to be used when gathering all data onto rank 0 for writing out. 
     int gather_counts[mpi_size];
     int gather_disp[mpi_size];
-    int temp_disp = 0;
-    
+    int gather_individual = (latitude-2)*(longitude-2);
+    //std::cout<<mpi_rank<< " "<<gather_individual<<std::endl;
+    MPI_Gather(&gather_individual,1,MPI_INT, gather_counts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    if (mpi_rank == 0){
+    	int temp_disp = 0;
+	    for (int rank=0;rank<mpi_size;rank++){
+		    gather_disp[rank] = temp_disp;
+		    if (verbose) std::cout <<"Sending: "<< rank << " " << gather_counts[rank] << " "<< gather_disp[rank] << std::endl;
+		    temp_disp += gather_counts[rank];
+	    }
+    }
+    /*
     for(int rank=0;rank<mpi_size;rank++){
-        const int add =(global_world.latitude*(rank/nproc_lat+1)/nproc_lat-global_world.latitude*(rank/nproc_lat)/nproc_lat)*(global_world.longitude*(rank%nproc_lon+1)/nproc_lon-
-global_world.longitude*(rank%nproc_lon)/nproc_lon);
-        gather_counts[rank] = add;
+        const int add =(global_world.latitude*temp_coords[0]/nproc_lat
+			-global_world.latitude*temp_coords[0]/nproc_lat)
+		*(global_world.longitude*temp_coords[1]/nproc_lon-
+			global_world.longitude*temp_coords[1]/nproc_lon);
+        //gather_counts[rank] = add;
 
         const int rank_disp = temp_disp;
         gather_disp[rank] = rank_disp;
@@ -345,6 +392,7 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
         temp_disp += add;
         //if(mpi_rank==0) std::cout << rank << "  " <<gather_counts[rank] <<", " << gather_disp[rank] << std::endl;
     }
+    */
     
     // ==============================================================================
     // BEGIN SIMULATION
@@ -366,7 +414,9 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
                 if (i < longitude || i > (latitude-1)*longitude) continue;
                 world_WO_ghost.push_back( world.data[i]);
         }
-        if(verbose&&iteration==0)std::cout << "Rank" << mpi_rank << ", " <<world_WO_ghost.size();
+        //if(verbose&&iteration==0)std::cout << "Rank" << mpi_rank << ", " <<world_WO_ghost.size()
+	 //      <<" Exp size: "<< gather_counts[mpi_rank]	<< std::endl;
+
         MPI_Gatherv(world_WO_ghost.data(), world_WO_ghost.size(), MPI_DOUBLE, global_world.data.data(), gather_counts,gather_disp, MPI_DOUBLE, 0,MPI_COMM_WORLD);
         
         
@@ -399,8 +449,8 @@ global_world.longitude*(rank%nproc_lon)/nproc_lon);
             version=1;
         if(global_world.longitude==7200)
             version=2;
-        
-        std::cout << check << " " << mpi_size << " " << nproc_lon << " " << nproc_lat << " " << (end - begin).count() / 1000000000.0 << " " << version;
+       	std::cout << "Check Size NLON NLAT TIME VERSION" << std::endl; 
+        std::cout << check << " " << mpi_size << " " << nproc_lon << " " << nproc_lat << " " << (end - begin).count() / 1000000000.0 << " " << version<< std::endl;
     }
     }
     MPI_Type_free(&horiz_type);
