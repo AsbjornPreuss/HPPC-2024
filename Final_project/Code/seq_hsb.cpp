@@ -7,10 +7,11 @@
 #include <cstdlib>
 
 #define Boltzmann 1.380649*pow(10,-23)
+bool verbose = false;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 25; // Number of spins in each direction.
+    int n_spins = 25; // Number of spins in The system.
     int n_dims = 2; // Number of dimensions the spins are placed in.
     int x_dist = 10;
     int y_dist = 10;
@@ -18,7 +19,7 @@ class spin_system {
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
     double J = 1; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
-    double Temperature; // Temperature of the system.
+    double Temperature = 0.001; // Temperature of the system.
     std::string filename = "seq_out.txt"; // Output file.
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
@@ -79,9 +80,9 @@ void generate_spin_directions(spin_system &sys){
         srand(i*rand()); // Seed is here to make it perform nicely when comparing to parallel
         double spin_polar = (double) rand()/RAND_MAX;
         
-        sys.spin.push_back({sin(spin_azimuthal)*cos(spin_polar), 
-                            sin(spin_azimuthal)*sin(spin_polar),
-                            cos(spin_polar)});
+        sys.spin.push_back({sin(spin_azimuthal*M_PI)*cos(spin_polar*2.*M_PI), 
+                            sin(spin_azimuthal*M_PI)*sin(spin_polar*2.*M_PI),
+                            cos(spin_azimuthal*M_PI)});
     }   
 };
 
@@ -130,11 +131,15 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
 void Simulate(spin_system& sys){
     double current_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> current_state (3);
+    if(verbose) std::cout << current_state[0] << " " << current_state[1] << " " << current_state[2] << std::endl;
+
+    auto begin = std::chrono::steady_clock::now();
+    std::cout << "Temp: " <<sys.Temperature<<std::endl;
     for (int iteration=0; iteration<sys.flips; iteration++){
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(sys.n_spins);
-        std::cout << rand_site << std::endl;
+        //std::cout << rand_site << std::endl;
         // Calculate it's current energy
         current_energy = energy_calculation_2d(sys, rand_site);
 
@@ -142,13 +147,15 @@ void Simulate(spin_system& sys){
         current_state.push_back(sys.spin[rand_site][0]);
         current_state.push_back(sys.spin[rand_site][1]);
         current_state.push_back(sys.spin[rand_site][2]);
+        if(verbose) std::cout << current_state[0+3*(iteration+1)] << " " << current_state[1+3*(iteration+1)] << " " << current_state[2+3*(iteration+1)] << std::endl;
+
         // Generate new state
         spin_azimuthal = (double) rand()/RAND_MAX;
         srand(iteration + 1);
         spin_polar = (double) rand()/RAND_MAX;
-        sys.spin[rand_site] = {sin(spin_azimuthal)*cos(spin_polar), 
-                            sin(spin_azimuthal)*sin(spin_polar),
-                            cos(spin_polar)};
+        sys.spin[rand_site] = {sin(spin_azimuthal*M_PI)*cos(spin_polar*2.*M_PI), 
+                            sin(spin_azimuthal*M_PI)*sin(spin_polar*2.*M_PI),
+                            cos(spin_azimuthal*M_PI)};
         // Calculate if it lowers energy
         new_energy = energy_calculation_2d(sys, rand_site);
         if (new_energy > current_energy){
@@ -158,13 +165,16 @@ void Simulate(spin_system& sys){
             if (probability_of_change < (double) rand()/RAND_MAX){
                 // If not, revert to old state
                 sys.spin[rand_site] = {
-                    current_state[0], current_state[1], current_state[2]
+                    current_state[0+3*(iteration+1)], current_state[1+3*(iteration+1)], current_state[2+3*(iteration+1)]
                 };
             }
         }
+        
         // Change H to represent the total energy of the system
         sys.H = sys.H - current_energy + new_energy;
     }
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
