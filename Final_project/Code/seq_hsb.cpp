@@ -6,7 +6,7 @@
 #include <fstream>
 #include <cstdlib>
 
-
+#define Boltzmann 1.380649*pow(10,-23)
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
@@ -18,6 +18,7 @@ class spin_system {
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
     double J = 1; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
+    double Temperature; // Temperature of the system.
     std::string filename = "seq_out.txt"; // Output file.
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
@@ -127,18 +128,42 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
 };
 
 void Simulate(spin_system& sys){
+    double current_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
+    std::vector<double> current_state (3);
     for (int iteration=0; iteration<sys.flips; iteration++){
         // Choose a random spin site
+        srand(iteration);
+        int rand_site = rand()%(sys.n_spins);
+        std::cout << rand_site << std::endl;
+        // Calculate it's current energy
+        current_energy = energy_calculation_2d(sys, rand_site);
 
+        // Store it's current state
+        current_state.push_back(sys.spin[rand_site][0]);
+        current_state.push_back(sys.spin[rand_site][1]);
+        current_state.push_back(sys.spin[rand_site][2]);
+        // Generate new state
+        spin_azimuthal = (double) rand()/RAND_MAX;
+        srand(iteration + 1);
+        spin_polar = (double) rand()/RAND_MAX;
+        sys.spin[rand_site] = {sin(spin_azimuthal)*cos(spin_polar), 
+                            sin(spin_azimuthal)*sin(spin_polar),
+                            cos(spin_polar)};
         // Calculate if it lowers energy
-
-        // If not, see if it should be randomised in direction
-
-        // If yes, randomise
-
+        new_energy = energy_calculation_2d(sys, rand_site);
+        if (new_energy > current_energy){
+            // If not, see if it should be randomised in direction
+            probability_of_change = exp(new_energy/Boltzmann/sys.Temperature); // FIgure out probability of change
+            srand(iteration*2);
+            if (probability_of_change < (double) rand()/RAND_MAX){
+                // If not, revert to old state
+                sys.spin[rand_site] = {
+                    current_state[0], current_state[1], current_state[2]
+                };
+            }
+        }
         // Change H to represent the total energy of the system
-
-        
+        sys.H = sys.H - current_energy + new_energy;
     }
 }
 //=============================================================================================
@@ -153,7 +178,5 @@ int main(int argc, char* argv[]){
     Simulate(sys);
     std::ofstream file(sys.filename); // open file
     Writeoutput(sys, file);
-
-
 
 }
