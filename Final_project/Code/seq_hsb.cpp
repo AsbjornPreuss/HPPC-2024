@@ -131,10 +131,11 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
 void Simulate(spin_system& sys){
     double current_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> current_state (3);
+    int no_flips = 0;
     if(verbose) std::cout << current_state[0] << " " << current_state[1] << " " << current_state[2] << std::endl;
-
+    
     auto begin = std::chrono::steady_clock::now();
-    std::cout << "Temp: " <<sys.Temperature<<std::endl;
+    std::cout << "Temp: " <<sys.Temperature<< " Boltzmann: " << Boltzmann << std::endl;
     for (int iteration=0; iteration<sys.flips; iteration++){
         // Choose a random spin site
         srand(iteration);
@@ -158,15 +159,19 @@ void Simulate(spin_system& sys){
                             cos(spin_azimuthal*M_PI)};
         // Calculate if it lowers energy
         new_energy = energy_calculation_2d(sys, rand_site);
+        //std::cout << "New Energy: " << new_energy << " Old energy: " << current_energy << std::endl;
         if (new_energy > current_energy){
             // If not, see if it should be randomised in direction
-            probability_of_change = exp(new_energy/Boltzmann/sys.Temperature); // FIgure out probability of change
+            //std::cout << "New Energy: " << new_energy << " Old energy: " << current_energy << std::endl;
+            probability_of_change = exp(-(new_energy-current_energy)/(Boltzmann*sys.Temperature)); // FIgure out probability of change
+            //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-current_energy)/(Boltzmann*sys.Temperature) << std::endl;
             srand(iteration*2);
             if (probability_of_change < (double) rand()/RAND_MAX){
                 // If not, revert to old state
                 sys.spin[rand_site] = {
                     current_state[0+3*(iteration+1)], current_state[1+3*(iteration+1)], current_state[2+3*(iteration+1)]
                 };
+                no_flips += 1;
             }
         }
         
@@ -175,6 +180,7 @@ void Simulate(spin_system& sys){
     }
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
+    std::cout << "Not flipped no. is " << no_flips << std::endl;
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
