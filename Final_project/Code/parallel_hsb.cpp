@@ -82,6 +82,7 @@ class local_spins{
 
     int nearest_neighbours; // Number of nearest neighbour interactions to be calculated
     int xlen, ylen, zlen;
+    int pad_xlen, pad_ylen, pad_zlen;
     int offset_x, offset_y, offset_z;
     int n_spins;
     double J; // Magnetization parameter, used in calculating energy.
@@ -89,6 +90,8 @@ class local_spins{
     double B; // Magnetic field in z direction
     double Temperature; // Temperature of the system.
     std::string filename; // Output file.
+
+    int no_in_padded_layer, no_in_layer;
 
     local_spins(spin_system &sys,
             int local_xlen, int local_ylen, int local_zlen,
@@ -101,8 +104,14 @@ class local_spins{
         xlen = local_xlen;
         ylen = local_ylen;
         zlen = local_zlen;
+        pad_xlen = xlen+2;
+        pad_ylen = ylen+2;
+        pad_zlen = zlen+2;
         
         n_spins = xlen*ylen*zlen;
+        no_in_layer = xlen*ylen;
+        no_in_padded_layer = (xlen+2)*(ylen+2);
+
         offset_x = offx;
         offset_y = offy;
         offset_z = offz;
@@ -112,25 +121,40 @@ class local_spins{
         Temperature = sys.Temperature;
         filename = sys.filename;
     };
-
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
     std::vector<std::vector<int>>    neighbours; // 2*n_dims by n_spins matrix, defining the neighbour indices of each cell, so they need only be calculated once.
+
+
+    int index_to_padded_index(int index){
+        int x = index%(no_in_layer)%xlen + 1;
+        int y = (index%(no_in_layer))/xlen + 1;
+        int z = index/(no_in_layer) + 1;
+
+        return z*no_in_padded_layer + y*pad_xlen + x; 
+    }
+
+    void padded_index_to_padded_coordinates(int index, int& x, int& y, int& z){
+        x = index % pad_xlen; // Which row the spin is in
+        y = (index/pad_ylen)%pad_ylen; // Which column the spin is in
+        z = index / no_in_padded_layer;
+    }
+
 };
 
 
 // Function that generates rectangular positions for alle the spins in the system, 
 void generate_positions_box(local_spins &sys){
-        for (double i=0; i<sys.xlen + 2; i++)
-        for (double j=0; j<sys.ylen + 2; j++)
-        for (double k=0; k<sys.zlen + 2; k++)
+        for (double i=0; i<sys.pad_xlen; i++)
+        for (double j=0; j<sys.pad_ylen; j++)
+        for (double k=0; k<sys.pad_zlen; k++)
             sys.position.push_back({i*sys.x_dist, j*sys.y_dist, k*sys.z_dist});
 };
 
 // Function that generates random directions for all the spins in the system
 void generate_spin_directions(local_spins &sys){
     
-    for (int i = 0; i<sys.xlen*sys.ylen*sys.zlen; i++){
+    for (int i = 0; i<sys.pad_zlen*sys.no_in_padded_layer; i++){
         srand(i); // Seed is here to make it perform nicely when comparing to parallel
         double spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
         srand(i*rand()); // Seed is here to make it perform nicely when comparing to parallel
@@ -143,18 +167,18 @@ void generate_spin_directions(local_spins &sys){
 };
 
 void generate_neighbours(local_spins &sys){
-    for (int spin = 0; spin<sys.xlen*sys.ylen*sys.zlen; spin++){
+    
+    for (int spin = 0; spin< sys.pad_zlen*sys.no_in_padded_layer; spin++){
         // Find position in square / cube
-        int spin_x = spin%sys.xlen; // Which row the spin is in
-        int spin_y = (spin/sys.ylen)%sys.ylen; // Which column the spin is in
-        int spin_z = spin / (sys.xlen * sys.ylen);
+        int spin_x, spin_y, spin_z;
+        sys.padded_index_to_padded_coordinates(spin, spin_x, spin_y, spin_z);
+
         // Find indices of neighbours
         std::vector<int> spin_interactions;
         for(int i = 0; i < 6; i++){
-            //TODO Is this right?
-            spin_interactions.push_back((spin_x + sys.x_offsets[i])%sys.xlen + 
-                                        (spin_y + sys.y_offsets[i])%sys.ylen*sys.xlen + 
-                                        (spin_z + sys.z_offsets[i])%sys.zlen *(sys.xlen * sys.ylen));
+            spin_interactions.push_back((spin_x + sys.x_offsets[i])%sys.pad_xlen + 
+                                        (spin_y + sys.y_offsets[i])%sys.pad_ylen * sys.pad_xlen + 
+                                        (spin_z + sys.z_offsets[i])%sys.pad_zlen * sys.no_in_padded_layer);
         }
         sys.neighbours.push_back(spin_interactions);
     }
@@ -163,12 +187,12 @@ void generate_neighbours(local_spins &sys){
 double energy_calculation_nd(local_spins &sys, int spin){
     double energy = 0;
     double dot_product;
-    for (int i=0; i<2*sys.n_dims; i++){
+    for (int i=0; i<6; i++){
         // Calculate the energy with the nearest neighbour with no corners
         dot_product = sys.spin[spin][0]*sys.spin[sys.neighbours[spin][i]][0] 
                         + sys.spin[spin][1]* sys.spin[sys.neighbours[spin][i]][1]
                         + sys.spin[spin][2]* sys.spin[sys.neighbours[spin][i]][2];
-        energy += - sys.J/2*dot_product;
+        energy -= sys.J/2*dot_product;
     }
     energy += sys.B*sys.spin[spin][2];
     return energy;
@@ -188,23 +212,27 @@ void Calculate_h(local_spins& sys){
 // Write the spin configurations in the output file.
 void Writeoutput(local_spins& sys, std::ofstream& file){  
     // Loop over all spins, and write out position and spin direction
+    // ONLY ONE RANK WRITES AT A TIME!!!!
+    //
+    int pad_i;
     for (int i = 0; i<sys.n_spins; i++){
-        file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
-            << sys.spin[i][0] << " " << sys.spin[i][1] << " "  << sys.spin[i][2] << " "
-            << energy_calculation_nd(sys,i)
+        pad_i = sys.index_to_padded_index(i);
+        file << sys.position[pad_i][0] << " " << sys.position[pad_i][1] << " "  << sys.position[pad_i][2] << " "
+            << sys.spin[pad_i][0] << " " << sys.spin[pad_i][1] << " "  << sys.spin[pad_i][2] << " "
+            << energy_calculation_nd(sys,pad_i)
             << std::endl;
     }
 };
 
 void Simulate(spin_system& sys, local_spins& localsys){
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
-    std::vector<double> old_state (3);
+    std::vector<double> old_state(3);
     int not_flipped = 0;
     int flipped = 0;
     if(verbose) std::cout << old_state[0] << " " << old_state[1] << " " << old_state[2] << std::endl;
     
     auto begin = std::chrono::steady_clock::now();
-    std::cout << "Temp: " <<sys.Temperature//<< " Boltzmann: " << Boltzmann 
+    std::cout << "Temp: " <<sys.Temperature
                             << std::endl;
 
     int local_iterations = sys.flips/mpi_size;
@@ -212,7 +240,7 @@ void Simulate(spin_system& sys, local_spins& localsys){
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
-
+        rand_site = localsys.index_to_padded_index(rand_site);
         
         // Calculate it's old energy
         old_energy = energy_calculation_nd(localsys, rand_site);
@@ -224,7 +252,7 @@ void Simulate(spin_system& sys, local_spins& localsys){
         
         // Generate new state
         spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
-        srand(iteration + 1);
+        srand(mpi_rank*iteration + iteration);
         spin_polar = (double) rand()/RAND_MAX * 2. * M_PI;
         sys.spin[rand_site] = {sin(spin_azimuthal)*cos(spin_polar), 
                             sin(spin_azimuthal)*sin(spin_polar),
@@ -239,35 +267,27 @@ void Simulate(spin_system& sys, local_spins& localsys){
             if (verbose) std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
             probability_of_change = exp(-(new_energy-old_energy)/sys.Temperature); // FIgure out probability of change
             //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-old_energy)/(Boltzmann*sys.Temperature) << std::endl;
-            srand(iteration*2);
+            srand((mpi_rank+1)*(iteration+1)*2);
             if (probability_of_change < (double) rand()/RAND_MAX){
                 // If not, revert to old state
                 sys.spin[rand_site] = {
                     old_state[0], old_state[1], old_state[2]
                 };
-                not_flipped += 1;
+                not_flipped++;
                 flipped--;
                 new_energy = old_energy;
             }
-
-            
-            // Remove next few lines when commenting the above back in
-            /*sys.spin[rand_site] = {
-                    old_state[0], old_state[1], old_state[2]
-                };
-            not_flipped += 1;
-            new_energy = old_energy;*/
         }
         
         // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
         //sys.H = sys.H - old_energy + new_energy;
     }
-    Calculate_h(sys);
+    Calculate_h(localsys);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
     std::cout << "Not flipped no. is " << not_flipped << std::endl;
     std::cout << "Flipped no. is " << flipped << std::endl;
-    std::cout << "Total energy: " << sys.H << std::endl;
+    std::cout << "Total energy: " << localsys.H << std::endl;
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
