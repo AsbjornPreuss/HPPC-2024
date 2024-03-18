@@ -144,7 +144,6 @@ void generate_neighbours(local_spins &sys){
 }
 // Function that calculates the energy of a single spin in 2d
 double energy_calculation_nd(spin_system &sys, int spin){
-    
     double energy = 0;
     double dot_product;
     for (int i=0; i<2*sys.n_dims; i++){
@@ -154,15 +153,19 @@ double energy_calculation_nd(spin_system &sys, int spin){
                         + sys.spin[spin][2]* sys.spin[sys.neighbours[spin][i]][2];
         energy += - sys.J/2*dot_product;
     }
+    energy += sys.B*sys.spin[spin][2];
     return energy;
 };
 
 // Calculate the total energy of the system
 void Calculate_h(spin_system& sys){
     sys.H = 0; // Set H to zero before recalculating it
+    double mag_energy = 0;
     for (int i=0; i<sys.n_spins; i++){
         sys.H += energy_calculation_nd(sys, i)*0.5; // Half the energy, because we calculate on all the spins
+        mag_energy += sys.spin[i][2]; 
     }
+    sys.H += sys.B*mag_energy * 0.5; // Half of the magnetization energy is removed above
 };
 
 // Write the spin configurations in the output file.
