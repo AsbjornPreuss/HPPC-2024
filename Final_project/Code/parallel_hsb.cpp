@@ -9,23 +9,26 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x, nproc_y;
+int nproc_x, nproc_y,nproc_z;
 
 bool verbose = false;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
     int n_spins = 25; // Number of spins in The system.
-    int n_dims = 2; // Number of dimensions the spins are placed in.
+    int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
-    int row_offsets[4] = {-1,0,0,1}; // For calculating neighbor indices in energy calculation
-    int col_offsets[4] = {0,-1,1,0};
+    int x_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
+    int y_offsets[6] = {0,-1,1,0,0,0};
+    int z_offsets[6] = {0,0,0,0,-1,1};
 
     int x_dist = 10;
     int y_dist = 10;
+    int z_dist = 10;
+
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
-    int xlen, ylen;
+    int xlen, ylen, zlen;
     double J = 1; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
     double B = 0; // Magnetic field in z direction
@@ -64,19 +67,22 @@ class spin_system {
 
     xlen = x_dist*n_spins_row;
     ylen = y_dist*n_spins_row;
+    zlen = z_dist*n_spins_row;
+        
     }
 };
 
 class local_spins{
     public:
-    int row_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
-    int col_offsets[6] = {0,-1,1,0,0,0};
+    int x_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
+    int y_offsets[6] = {0,-1,1,0,0,0};
+    int z_offsets[6] = {0,0,0,0,-1,1};
 
-    int x_dist,y_dist;
+    int x_dist,y_dist,z_dist;
 
     int nearest_neighbours; // Number of nearest neighbour interactions to be calculated
-    int xlen, ylen;
-    int offset_x, offset_y;
+    int xlen, ylen, zlen;
+    int offset_x, offset_y, offset_z;
     double J; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
     double B; // Magnetic field in z direction
@@ -84,15 +90,20 @@ class local_spins{
     std::string filename; // Output file.
 
     local_spins(spin_system &sys,
-            int local_xlen, int local_ylen,
-            int offx, int offy){
+            int local_xlen, int local_ylen, int local_zlen,
+            int offx, int offy, int offz){
         x_dist = sys.x_dist;
         y_dist = sys.y_dist;
+        z_dist = sys.z_dist;
+        
         nearest_neighbours = sys.nearest_neighbours;
         xlen = local_xlen;
         ylen = local_ylen;
+        zlen = local_zlen;
+        
         offset_x = offx;
         offset_y = offy;
+        offset_z = offz;
         J = sys.J;
         H = sys.H;
         B = sys.B;
@@ -108,15 +119,16 @@ class local_spins{
 
 // Function that generates rectangular positions for alle the spins in the system, 
 void generate_positions_box(local_spins &sys){
-        for (double i=0; i<sys.xlen +2; i++)
-        for (double j=0; j<sys.xlen + 2; j++)
-            sys.position.push_back({i*sys.x_dist, j*sys.y_dist, 0});
+        for (double i=0; i<sys.xlen + 2; i++)
+        for (double j=0; j<sys.ylen + 2; j++)
+        for (double k=0; k<sys.zlen + 2; k++)
+            sys.position.push_back({i*sys.x_dist, j*sys.y_dist, k*sys.z_dist});
 };
 
 // Function that generates random directions for all the spins in the system
 void generate_spin_directions(local_spins &sys){
     
-    for (int i = 0; i<sys.xlen*sys.ylen; i++){
+    for (int i = 0; i<sys.xlen*sys.ylen*sys.zlen; i++){
         srand(i); // Seed is here to make it perform nicely when comparing to parallel
         double spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
         srand(i*rand()); // Seed is here to make it perform nicely when comparing to parallel
@@ -129,15 +141,18 @@ void generate_spin_directions(local_spins &sys){
 };
 
 void generate_neighbours(local_spins &sys){
-    for (int spin = 0; spin<sys.xlen*sys.ylen; spin++){
+    for (int spin = 0; spin<sys.xlen*sys.ylen*sys.zlen; spin++){
         // Find position in square / cube
-        int spin_row = spin/sys.ylen; // Which row the spin is in
-        int spin_col = spin%sys.xlen; // Which column the spin is in
+        int spin_x = spin%sys.xlen; // Which row the spin is in
+        int spin_y = (spin/sys.ylen)%sys.ylen; // Which column the spin is in
+        int spin_z = spin / (sys.xlen * sys.ylen);
         // Find indices of neighbours
         std::vector<int> spin_interactions;
-        for(int i = 0; i < 4; i++){
+        for(int i = 0; i < 6; i++){
             //TODO Is this right?
-            spin_interactions.push_back((spin_row + sys.row_offsets[i])%sys.ylen + (spin_col + sys.col_offsets[i])%sys.ylen);
+            spin_interactions.push_back((spin_x + sys.x_offsets[i])%sys.xlen + 
+                                        (spin_y + sys.y_offsets[i])%sys.ylen*sys.xlen + 
+                                        (spin_z + sys.z_offsets[i])%sys.zlen *(sys.xlen * sys.ylen));
         }
         sys.neighbours.push_back(spin_interactions);
     }
@@ -272,7 +287,7 @@ int main(int argc, char* argv[]){
     spin_system global_sys({argv, argv+argc});
 
     //Setup MPI
-    int dims[2] = {nproc_x, nproc_y};
+    int dims[2] = {nproc_x, nproc_y,nproc_z};
     int periods[2] = {1,1};
     int coords[2];
     MPI_Dims_create(mpi_size, 2, dims);
@@ -287,14 +302,17 @@ int main(int argc, char* argv[]){
 
     const long int offset_x = global_sys.xlen * coords[0] / nproc_x -1;
     const long int offset_y = global_sys.ylen * coords[1] / nproc_y -1;
+    const long int offset_z = global_sys.zlen * coords[2] / nproc_z -1;
 
+    
     const long int end_x = global_sys.xlen * (coords[0]+1) / nproc_x +1; 
     const long int end_y = global_sys.ylen * (coords[1]+1) / nproc_y +1; 
+    const long int end_z = global_sys.zlen * (coords[2]+1) / nproc_z +1; 
 
 
     local_spins local_sys(global_sys, 
-            end_x-offset_x, end_y-offset_y,
-            offset_x, offset_y);
+            end_x-offset_x, end_y-offset_y, end_z -offset_z,
+            offset_x, offset_y,offset_z);
 
 
     //Generate system TODO: Done in parallel
