@@ -83,6 +83,7 @@ class local_spins{
     int nearest_neighbours; // Number of nearest neighbour interactions to be calculated
     int xlen, ylen, zlen;
     int offset_x, offset_y, offset_z;
+    int n_spins;
     double J; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
     double B; // Magnetic field in z direction
@@ -101,6 +102,7 @@ class local_spins{
         ylen = local_ylen;
         zlen = local_zlen;
         
+        n_spins = xlen*ylen*zlen;
         offset_x = offx;
         offset_y = offy;
         offset_z = offz;
@@ -158,7 +160,7 @@ void generate_neighbours(local_spins &sys){
     }
 }
 // Function that calculates the energy of a single spin in 2d
-double energy_calculation_nd(spin_system &sys, int spin){
+double energy_calculation_nd(local_spins &sys, int spin){
     double energy = 0;
     double dot_product;
     for (int i=0; i<2*sys.n_dims; i++){
@@ -173,7 +175,7 @@ double energy_calculation_nd(spin_system &sys, int spin){
 };
 
 // Calculate the total energy of the system
-void Calculate_h(spin_system& sys){
+void Calculate_h(local_spins& sys){
     sys.H = 0; // Set H to zero before recalculating it
     double mag_energy = 0;
     for (int i=0; i<sys.n_spins; i++){
@@ -184,7 +186,7 @@ void Calculate_h(spin_system& sys){
 };
 
 // Write the spin configurations in the output file.
-void Writeoutput(spin_system& sys, std::ofstream& file){  
+void Writeoutput(local_spins& sys, std::ofstream& file){  
     // Loop over all spins, and write out position and spin direction
     for (int i = 0; i<sys.n_spins; i++){
         file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
@@ -194,7 +196,7 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
     }
 };
 
-void Simulate(spin_system& sys){
+void Simulate(spin_system& sys, local_spins& localsys){
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> old_state (3);
     int not_flipped = 0;
@@ -204,13 +206,16 @@ void Simulate(spin_system& sys){
     auto begin = std::chrono::steady_clock::now();
     std::cout << "Temp: " <<sys.Temperature//<< " Boltzmann: " << Boltzmann 
                             << std::endl;
-    for (int iteration=0; iteration<sys.flips; iteration++){
+
+    int local_iterations = sys.flips/mpi_size;
+    for (int iteration=0; iteration<local_iterations; iteration++){
         // Choose a random spin site
         srand(iteration);
-        int rand_site = rand()%(sys.n_spins);
+        int rand_site = rand()%(localsys.n_spins);
+
         
         // Calculate it's old energy
-        old_energy = energy_calculation_nd(sys, rand_site);
+        old_energy = energy_calculation_nd(localsys, rand_site);
 
         // Store it's old state. 
         old_state[0] = sys.spin[rand_site][0];
@@ -226,7 +231,7 @@ void Simulate(spin_system& sys){
                             cos(spin_azimuthal)};
         flipped++; 
         // Calculate if it lowers energy
-        new_energy = energy_calculation_nd(sys, rand_site);
+        new_energy = energy_calculation_nd(localsys, rand_site);
         if (new_energy > old_energy){
             // Commenting out this bit for now, since p is always zero anyway. Then it can go a bit faster
             
@@ -324,8 +329,8 @@ int main(int argc, char* argv[]){
     generate_neighbours(local_sys);
 
     //Magic TODO h as reduction
-    Calculate_h(sys);
-    Simulate(sys);
+    Calculate_h(local_sys);
+    Simulate(local_sys);
     
     if (mpi_rank == 0) std::cout << "Final energy: " << sys.H << std::endl;
 

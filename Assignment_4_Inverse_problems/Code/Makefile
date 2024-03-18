@@ -24,8 +24,8 @@ default: seq mp
 seq: seismogram_seq.cpp
 	$(CXX) seismogram_seq.cpp $(CXXFLAGS) -o seq
 
-mp: seismogram_omp_l3.cpp
-	$(CXX) seismogram_omp_l3.cpp $(CXXFLAGS) -fopenmp -o mp_3_4
+mp: seismogram_omp.cpp
+	$(CXX) seismogram_omp.cpp $(CXXFLAGS) -fopenmp -o mp_3_4
 
 clean:
 	rm -fr seq mp
