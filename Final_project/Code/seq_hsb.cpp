@@ -6,7 +6,6 @@
 #include <fstream>
 #include <cstdlib>
 
-#define Boltzmann 1.380649*pow(10,-23)
 bool verbose = false;
 class spin_system {
     public:
@@ -25,7 +24,8 @@ class spin_system {
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
     double J = 1; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
-    double Temperature = 0.001; // Temperature of the system.
+    double B = 0; // Magnetic field in z direction
+    double Temperature = 1; // Temperature of the system.
     std::string filename = "seq_out.txt"; // Output file.
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
@@ -34,8 +34,10 @@ class spin_system {
     for (long unsigned int i = 1; i<argument.size() ; i += 2){
             std::string arg = argument.at(i);
             if(arg=="-h"){ // Write help
-                std::cout << "Heisenberg_simulation --flips <number of flips performed> --nspins <number of spins simulated> --ndims <number of dimensions to simulate>"
-                          << " --ofile <filename> \n";
+                std::cout << "Heisenberg_simulation\n --flips <number of flips performed>\n --nspins <number of spins simulated>\n --ndims <number of dimensions to simulate> \n"
+                          << " --ofile <filename>\n --magnet <strength of external magnetic field in z direction>\n"
+                          << " --temp <temperature> \n";
+
                 exit(0);
                 break;
             } else if(arg=="--flips"){
@@ -46,6 +48,10 @@ class spin_system {
                 n_dims = std::stoi(argument[i+1]);
             } else if(arg=="--ofile"){
                 filename = argument[i+1];
+            } else if(arg=="--magnet"){
+                B = std::stoi(argument[i+1]);
+            } else if(arg=="--temp"){
+                Temperature = std::stod(argument[i+1]);
             } else{
                 std::cout << "---> error: the argument type is not recognized \n";
             }
@@ -150,25 +156,27 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
 };
 
 void Simulate(spin_system& sys){
-    double current_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
-    std::vector<double> current_state (3);
+    double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
+    std::vector<double> old_state (3);
     int not_flipped = 0;
-    if(verbose) std::cout << current_state[0] << " " << current_state[1] << " " << current_state[2] << std::endl;
+    int flipped = 0;
+    if(verbose) std::cout << old_state[0] << " " << old_state[1] << " " << old_state[2] << std::endl;
     
     auto begin = std::chrono::steady_clock::now();
-    std::cout << "Temp: " <<sys.Temperature<< " Boltzmann: " << Boltzmann << std::endl;
+    std::cout << "Temp: " <<sys.Temperature//<< " Boltzmann: " << Boltzmann 
+                            << std::endl;
     for (int iteration=0; iteration<sys.flips; iteration++){
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(sys.n_spins);
         
-        // Calculate it's current energy
-        current_energy = energy_calculation_nd(sys, rand_site);
+        // Calculate it's old energy
+        old_energy = energy_calculation_nd(sys, rand_site);
 
-        // Store it's current state. 
-        current_state[0] = sys.spin[rand_site][0];
-        current_state[1] = sys.spin[rand_site][1];
-        current_state[2] = sys.spin[rand_site][2];
+        // Store it's old state. 
+        old_state[0] = sys.spin[rand_site][0];
+        old_state[1] = sys.spin[rand_site][1];
+        old_state[2] = sys.spin[rand_site][2];
         
         // Generate new state
         spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
@@ -177,41 +185,44 @@ void Simulate(spin_system& sys){
         sys.spin[rand_site] = {sin(spin_azimuthal)*cos(spin_polar), 
                             sin(spin_azimuthal)*sin(spin_polar),
                             cos(spin_azimuthal)};
-        
+        flipped++; 
         // Calculate if it lowers energy
         new_energy = energy_calculation_nd(sys, rand_site);
-        if (new_energy > current_energy){
-            /* Commenting out this bit for now, since p is always zero anyway. Then it can go a bit faster
+        if (new_energy > old_energy){
+            // Commenting out this bit for now, since p is always zero anyway. Then it can go a bit faster
             
             // If not, see if it should be randomised in direction
-            //std::cout << "New Energy: " << new_energy << " Old energy: " << current_energy << std::endl;
-            probability_of_change = exp(-(new_energy-current_energy)/(Boltzmann*sys.Temperature)); // FIgure out probability of change
-            //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-current_energy)/(Boltzmann*sys.Temperature) << std::endl;
+            std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
+            probability_of_change = exp(-(new_energy-old_energy)/sys.Temperature); // FIgure out probability of change
+            //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-old_energy)/(Boltzmann*sys.Temperature) << std::endl;
             srand(iteration*2);
             if (probability_of_change < (double) rand()/RAND_MAX){
                 // If not, revert to old state
                 sys.spin[rand_site] = {
-                    current_state[0], current_state[1], current_state[2]
+                    old_state[0], old_state[1], old_state[2]
                 };
                 not_flipped += 1;
-                new_energy = current_energy;
+                flipped--;
+                new_energy = old_energy;
             }
-            */
+
+            
             // Remove next few lines when commenting the above back in
-            sys.spin[rand_site] = {
-                    current_state[0], current_state[1], current_state[2]
+            /*sys.spin[rand_site] = {
+                    old_state[0], old_state[1], old_state[2]
                 };
             not_flipped += 1;
-            new_energy = current_energy;
+            new_energy = old_energy;*/
         }
         
         // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
-        //sys.H = sys.H - current_energy + new_energy;
+        //sys.H = sys.H - old_energy + new_energy;
     }
     Calculate_h(sys);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
     std::cout << "Not flipped no. is " << not_flipped << std::endl;
+    std::cout << "Flipped no. is " << flipped << std::endl;
     std::cout << "Total energy: " << sys.H << std::endl;
 }
 //=============================================================================================
