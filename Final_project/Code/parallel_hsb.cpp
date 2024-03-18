@@ -9,7 +9,7 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 1,nproc_z=1;
+int nproc_x = 2, nproc_y = 2,nproc_z=2;
 
 bool verbose = false;
 class spin_system {
@@ -235,7 +235,9 @@ void exchange_ghost_cells(local_spins &local_sys,
                             local_sys.spin.data(), counts,  &rdispls, &recvtypes, cart_comm);
 };
 
-void Simulate(spin_system& sys, local_spins& localsys){
+void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
+                        MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
+                        MPI_Comm cart_comm){
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> old_state(3);
     int not_flipped = 0;
@@ -291,6 +293,11 @@ void Simulate(spin_system& sys, local_spins& localsys){
         
         // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
         //sys.H = sys.H - old_energy + new_energy;
+    std::cout << " Print 1 " << std::endl;
+    exchange_ghost_cells(localsys,sdispls, rdispls, 
+                        sendtypes, recvtypes,
+                        cart_comm);
+    std::cout << " Print 2 " << std::endl;
     }
     Calculate_h(localsys);
     auto end = std::chrono::steady_clock::now();
@@ -423,7 +430,9 @@ int main(int argc, char* argv[]){
     generate_neighbours(local_sys);
     //Magic TODO h as reduction
     Calculate_h(local_sys);
-    Simulate(global_sys,local_sys);
+    Simulate(global_sys,local_sys,*sdispls, *rdispls, 
+                        *sendtypes, *recvtypes,
+                        cart_comm);
     
     if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
 
