@@ -34,23 +34,23 @@ class spin_system {
     for (long unsigned int i = 1; i<argument.size() ; i += 2){
             std::string arg = argument.at(i);
             if(arg=="-h"){ // Write help
-                std::cout << "Heisenberg_simulation -flips <number of flips performed> -n_spins <number of spins simulated> -n_dims <number of dimensions to simulate>"
-                          << " -ofile <filename> \n";
+                std::cout << "Heisenberg_simulation --flips <number of flips performed> --nspins <number of spins simulated> --ndims <number of dimensions to simulate>"
+                          << " --ofile <filename> \n";
                 exit(0);
                 break;
-            } else if(arg=="-flips"){
+            } else if(arg=="--flips"){
                 flips = std::stoi(argument[i+1]);
-            } else if(arg=="-n_spins"){
+            } else if(arg=="--nspins"){
                 n_spins = std::stoi(argument[i+1]);
-            } else if(arg=="-n_dims"){
+            } else if(arg=="--ndims"){
                 n_dims = std::stoi(argument[i+1]);
-            } else if(arg=="-ofile"){
+            } else if(arg=="--ofile"){
                 filename = argument[i+1];
             } else{
                 std::cout << "---> error: the argument type is not recognized \n";
             }
         }
-    n_spins_row = pow(float(n_spins),1./float(n_dims));
+    n_spins_row = pow(float(n_spins),1./float(n_dims)); //Equal size in all dimensions
     }
 };
 
@@ -145,14 +145,14 @@ void Writeoutput(spin_system& sys, std::ofstream& file){
         file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
             << sys.spin[i][0] << " " << sys.spin[i][1] << " "  << sys.spin[i][2] << " "
             << energy_calculation_nd(sys,i)
-            << '\n';
+            << std::endl;
     }
 };
 
 void Simulate(spin_system& sys){
     double current_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> current_state (3);
-    int no_flips = 0;
+    int not_flipped = 0;
     if(verbose) std::cout << current_state[0] << " " << current_state[1] << " " << current_state[2] << std::endl;
     
     auto begin = std::chrono::steady_clock::now();
@@ -193,7 +193,7 @@ void Simulate(spin_system& sys){
                 sys.spin[rand_site] = {
                     current_state[0], current_state[1], current_state[2]
                 };
-                no_flips += 1;
+                not_flipped += 1;
                 new_energy = current_energy;
             }
             */
@@ -201,7 +201,7 @@ void Simulate(spin_system& sys){
             sys.spin[rand_site] = {
                     current_state[0], current_state[1], current_state[2]
                 };
-            no_flips += 1;
+            not_flipped += 1;
             new_energy = current_energy;
         }
         
@@ -211,7 +211,7 @@ void Simulate(spin_system& sys){
     Calculate_h(sys);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
-    std::cout << "Not flipped no. is " << no_flips << std::endl;
+    std::cout << "Not flipped no. is " << not_flipped << std::endl;
     std::cout << "Total energy: " << sys.H << std::endl;
 }
 //=============================================================================================
@@ -219,13 +219,19 @@ void Simulate(spin_system& sys){
 //=============================================================================================
 int main(int argc, char* argv[]){
     std::cout << "Hello Heisenberg!" << std::endl;
+
+    //Load config
     spin_system sys({argv, argv+argc});
+
+    //Generate system
     generate_positions_box(sys);
     generate_spin_directions(sys);
     generate_neighbours(sys);
+
+    //Magic
     Calculate_h(sys);
     Simulate(sys);
+
     std::ofstream file(sys.filename); // open file
     Writeoutput(sys, file);
-
 }
