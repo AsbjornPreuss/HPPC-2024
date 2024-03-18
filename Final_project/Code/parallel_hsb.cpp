@@ -5,6 +5,11 @@
 #include <cmath>
 #include <fstream>
 #include <cstdlib>
+#include <mpi.h>
+
+int mpi_size;
+int mpi_rank;
+int nproc_x, nproc_y;
 
 bool verbose = false;
 class spin_system {
@@ -14,14 +19,13 @@ class spin_system {
     int n_dims = 2; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
-    int row_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
-    int col_offsets[6] = {0,-1,1,0,0,0};
-    int dep_offsets[6] = {0,0,0,0,-1,1};
+    int row_offsets[4] = {-1,0,0,1}; // For calculating neighbor indices in energy calculation
+    int col_offsets[4] = {0,-1,1,0};
 
     int x_dist = 10;
     int y_dist = 10;
-    int z_dist = 10;
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
+    int xlen, ylen;
     double J = 1; // Magnetization parameter, used in calculating energy.
     double H; // Total energy of the system;
     double B = 0; // Magnetic field in z direction
@@ -57,39 +61,62 @@ class spin_system {
             }
         }
     n_spins_row = pow(float(n_spins),1./float(n_dims)); //Equal size in all dimensions
+
+    xlen = x_dist*n_spins_row;
+    ylen = y_dist*n_spins_row;
     }
+};
+
+class local_spins{
+    public:
+    int row_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
+    int col_offsets[6] = {0,-1,1,0,0,0};
+
+    int x_dist,y_dist;
+
+    int nearest_neighbours; // Number of nearest neighbour interactions to be calculated
+    int xlen, ylen;
+    int offset_x, offset_y;
+    double J; // Magnetization parameter, used in calculating energy.
+    double H; // Total energy of the system;
+    double B; // Magnetic field in z direction
+    double Temperature; // Temperature of the system.
+    std::string filename; // Output file.
+
+    local_spins(spin_system &sys,
+            int local_xlen, int local_ylen,
+            int offx, int offy){
+        x_dist = sys.x_dist;
+        y_dist = sys.y_dist;
+        nearest_neighbours = sys.nearest_neighbours;
+        xlen = local_xlen;
+        ylen = local_ylen;
+        offset_x = offx;
+        offset_y = offy;
+        J = sys.J;
+        H = sys.H;
+        B = sys.B;
+        Temperature = sys.Temperature;
+        filename = sys.filename;
+    };
+
+    std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
+    std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
+    std::vector<std::vector<int>>    neighbours; // 2*n_dims by n_spins matrix, defining the neighbour indices of each cell, so they need only be calculated once.
 };
 
 
 // Function that generates rectangular positions for alle the spins in the system, 
-void generate_positions_box(spin_system &sys){
-    switch (sys.n_dims)
-    {
-    case 1:
-        for (double i=0; i<sys.n_spins; i++)
-            sys.position.push_back({i*sys.x_dist, 0, 0});
-        break;
-    case 2:
-        for (double i=0; i<sqrt(sys.n_spins)+2; i++)
-        for (double j=0; j<sqrt(sys.n_spins)+2; j++)
+void generate_positions_box(local_spins &sys){
+        for (double i=0; i<sys.xlen +2; i++)
+        for (double j=0; j<sys.xlen + 2; j++)
             sys.position.push_back({i*sys.x_dist, j*sys.y_dist, 0});
-        break;
-    case 3:
-        for (double i=0; i<cbrt(sys.n_spins); i++)
-        for (double j=0; j<cbrt(sys.n_spins); j++)
-        for (double k=0; k<cbrt(sys.n_spins); k++)
-            sys.position.push_back({i*sys.x_dist, j*sys.y_dist, k*sys.z_dist});
-        break;
-    default:
-        break;
-    }
-
 };
 
 // Function that generates random directions for all the spins in the system
-void generate_spin_directions(spin_system &sys){
+void generate_spin_directions(local_spins &sys){
     
-    for (int i = 0; i<sys.n_spins; i++){
+    for (int i = 0; i<sys.xlen*sys.ylen; i++){
         srand(i); // Seed is here to make it perform nicely when comparing to parallel
         double spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
         srand(i*rand()); // Seed is here to make it perform nicely when comparing to parallel
@@ -101,21 +128,16 @@ void generate_spin_directions(spin_system &sys){
     }   
 };
 
-void generate_neighbours(spin_system &sys){
-    for (int spin = 0; spin<sys.n_spins; spin++){
+void generate_neighbours(local_spins &sys){
+    for (int spin = 0; spin<sys.xlen*sys.ylen; spin++){
         // Find position in square / cube
-        int spin_row = spin/sys.n_spins_row; // Which row the spin is in
-        if(sys.n_dims>2) spin_row = spin_row % sys.n_spins_row;
-        int spin_col = spin%sys.n_spins_row; // Which column the spin is in
-        int spin_dep = spin / (sys.n_spins_row*sys.n_spins_row);
-        
+        int spin_row = spin/sys.ylen; // Which row the spin is in
+        int spin_col = spin%sys.xlen; // Which column the spin is in
         // Find indices of neighbours
         std::vector<int> spin_interactions;
-        for(int i = 0; i < 2* sys.n_dims; i++){
-            spin_interactions.push_back((spin_row + sys.row_offsets[i])%sys.n_spins_row*sys.n_spins_row + 
-                                        (spin_col + sys.col_offsets[i])%sys.n_spins_row + 
-                                        (spin_dep + sys.dep_offsets[i])%sys.n_spins_row * (sys.n_spins_row * sys.n_spins_row));
-            if (spin_interactions[i]<0) spin_interactions[i] *= -1; // Should'nt be necessary, but modulo is not good with - 
+        for(int i = 0; i < 4; i++){
+            //TODO Is this right?
+            spin_interactions.push_back((spin_row + sys.row_offsets[i])%sys.ylen + (spin_col + sys.col_offsets[i])%sys.ylen);
         }
         sys.neighbours.push_back(spin_interactions);
     }
@@ -191,7 +213,7 @@ void Simulate(spin_system& sys){
             // Commenting out this bit for now, since p is always zero anyway. Then it can go a bit faster
             
             // If not, see if it should be randomised in direction
-            std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
+            if (verbose) std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
             probability_of_change = exp(-(new_energy-old_energy)/sys.Temperature); // FIgure out probability of change
             //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-old_energy)/(Boltzmann*sys.Temperature) << std::endl;
             srand(iteration*2);
@@ -228,20 +250,72 @@ void Simulate(spin_system& sys){
 //=========================   MAIN FUNCTION   =================================================
 //=============================================================================================
 int main(int argc, char* argv[]){
-    std::cout << "Hello Heisenberg!" << std::endl;
+    if (verbose) std::cout << "Hello Heisenberg!" << std::endl;
 
-    //Load config
-    spin_system sys({argv, argv+argc});
+    //MPI
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    if (verbose) {
+    // Get the name of the processor
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_Get_processor_name(processor_name, &name_len);
 
-    //Generate system
-    generate_positions_box(sys);
-    generate_spin_directions(sys);
-    generate_neighbours(sys);
+    // Print off a hello world message
+    std::cout << "Heisenberg running on " << processor_name
+              << ", rank " << mpi_rank << " out of " << mpi_size << std::endl;
 
-    //Magic
+    }
+
+    //Initialise and load config
+    spin_system global_sys({argv, argv+argc});
+
+    //Setup MPI
+    int dims[2] = {nproc_x, nproc_y};
+    int periods[2] = {1,1};
+    int coords[2];
+    MPI_Dims_create(mpi_size, 2, dims);
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods,
+            0, &cart_comm);
+    MPI_Cart_coords(cart_comm, mpi_rank, 2, coords);
+
+    int nleft, nright, nbottom, ntop;
+    MPI_Cart_shift(cart_comm, 1,1,&nleft,&nright);
+    MPI_Cart_shift(cart_comm, 0,1,&nbottom,&ntop);
+
+    const long int offset_x = global_sys.xlen * coords[0] / nproc_x -1;
+    const long int offset_y = global_sys.ylen * coords[1] / nproc_y -1;
+
+    const long int end_x = global_sys.xlen * (coords[0]+1) / nproc_x +1; 
+    const long int end_y = global_sys.ylen * (coords[1]+1) / nproc_y +1; 
+
+
+    local_spins local_sys(global_sys, 
+            end_x-offset_x, end_y-offset_y,
+            offset_x, offset_y);
+
+
+    //Generate system TODO: Done in parallel
+    generate_positions_box(local_sys);
+    generate_spin_directions(local_sys);
+    generate_neighbours(local_sys);
+
+    //Magic TODO h as reduction
     Calculate_h(sys);
     Simulate(sys);
+    
+    if (mpi_rank == 0) std::cout << "Final energy: " << sys.H << std::endl;
 
-    std::ofstream file(sys.filename); // open file
-    Writeoutput(sys, file);
+    for (int i = 0; i < mpi_size; i++ ){
+            if (mpi_rank == i){
+                std::ofstream file(sys.filename); // open file
+                Writeoutput(sys, file);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    MPI_Finalize();
+    return 0;
 }

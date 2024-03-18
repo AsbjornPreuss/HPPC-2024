@@ -116,7 +116,6 @@ void generate_neighbours(spin_system &sys){
                                         (spin_col + sys.col_offsets[i])%sys.n_spins_row + 
                                         (spin_dep + sys.dep_offsets[i])%sys.n_spins_row * (sys.n_spins_row * sys.n_spins_row));
             if (spin_interactions[i]<0) spin_interactions[i] *= -1; // Should'nt be necessary, but modulo is not good with - 
-
         }
         sys.neighbours.push_back(spin_interactions);
     }
@@ -192,7 +191,7 @@ void Simulate(spin_system& sys){
             // Commenting out this bit for now, since p is always zero anyway. Then it can go a bit faster
             
             // If not, see if it should be randomised in direction
-            std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
+            if (verbose) std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
             probability_of_change = exp(-(new_energy-old_energy)/sys.Temperature); // FIgure out probability of change
             //std::cout << "Change prob: " << probability_of_change << " Exp factor :" << -(new_energy-old_energy)/(Boltzmann*sys.Temperature) << std::endl;
             srand(iteration*2);
