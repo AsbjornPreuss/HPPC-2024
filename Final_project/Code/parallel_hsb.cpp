@@ -15,7 +15,7 @@ bool verbose = true;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 25; // Number of spins in The system.
+    int n_spins = 125; // Number of spins in The system.
     int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
@@ -217,7 +217,7 @@ void Writeoutput(local_spins& sys, std::ofstream& file){
     // ONLY ONE RANK WRITES AT A TIME!!!!
     //
     int pad_i;
-    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Total_energy" << std::endl;
+    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Spin_energy" << std::endl;
     for (int i = 0; i<sys.n_spins; i++){
         pad_i = sys.index_to_padded_index(i);
         file << sys.position[pad_i][0] << " " << sys.position[pad_i][1] << " "  << sys.position[pad_i][2] << " "
@@ -303,9 +303,9 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
 
     
     } 
-    exchange_ghost_cells(localsys,sdispls, rdispls, 
+    /* exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
-                        cart_comm);
+                        cart_comm); */
     Calculate_h(localsys);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;

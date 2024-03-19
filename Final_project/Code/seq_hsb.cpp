@@ -10,8 +10,8 @@ bool verbose = false;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 25; // Number of spins in The system.
-    int n_dims = 2; // Number of dimensions the spins are placed in.
+    int n_spins = 125; // Number of spins in The system.
+    int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
     int row_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
