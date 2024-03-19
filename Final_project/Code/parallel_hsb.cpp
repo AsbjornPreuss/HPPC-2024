@@ -233,12 +233,12 @@ void exchange_ghost_cells(local_spins &local_sys,
     int counts[6] = {1,1,1,1,1,1};
     // Make Proof of concept work
     std::vector<double> sx;
-    for (long unsigned int i=0; i<local_sys.spin.size(); i++){
+    for (uint64_t i=0; i<local_sys.spin.size(); i++){
         sx.push_back(local_sys.spin[i][0]);
     }
     // Send ghostcells
-    MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
-                            sx.data(), counts,  &rdispls, &recvtypes, cart_comm);
+    std::cout << "MPI Error Code: "<< MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
+                            sx.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
