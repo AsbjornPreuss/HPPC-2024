@@ -10,6 +10,7 @@
 int mpi_size;
 int mpi_rank;
 int nproc_x = 2, nproc_y = 1,nproc_z=1;
+enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = true;
 class spin_system {
@@ -185,7 +186,7 @@ void generate_neighbours(local_spins &sys){
     }
 }
 // Function that calculates the energy of a single spin in 2d
-double energy_calculation_nd(local_spins &sys, int spin){
+double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
     double energy = 0;
     double dot_product;
     for (int i=0; i<6; i++){
@@ -195,6 +196,15 @@ double energy_calculation_nd(local_spins &sys, int spin){
         // ========== POSSIBLE IMPLEMENTATION OF GHOST CELLS ========
         // ==========================================================
         // If i nearest neighbor is not in this block, Send (blocking)
+        // TODO: Make proper indicator that neighbor is not in this block
+        // TODO: Make proper indicator of which neighbor the request for spin should go to
+        // TODO: Make proper calculation of which index is needed
+        int neighbor = 1;
+        if (sys.neighbours[spin][i] == -1){
+            std::vector<double> ghost_spin;
+            MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neigbor, ghost_cell_request, cart_comm);
+            MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
+        }
         // Request to the appropriate block, and ask for ghost cell.
         // Then calculate interaction with that cell
 
@@ -212,19 +222,19 @@ double energy_calculation_nd(local_spins &sys, int spin){
 };
 
 // Calculate the total energy of the system
-void Calculate_h(local_spins& sys){
+void Calculate_h(local_spins& sys, MPI_Comm cart_comm){
     sys.H = 0; // Set H to zero before recalculating it
     double mag_energy = 0;
     for (int i=0; i<sys.n_spins; i++){
         int pad_i = sys.index_to_padded_index(i);
-        sys.H += energy_calculation_nd(sys, pad_i)*0.5; // Half the energy, because we calculate on all the spins
+        sys.H += energy_calculation_nd(sys, pad_i, cart_comm)*0.5; // Half the energy, because we calculate on all the spins
         mag_energy += sys.spin[pad_i][2]; 
     }
     sys.H += sys.B*mag_energy * 0.5; // Half of the magnetization energy is removed above
 };
 
 // Write the spin configurations in the output file.
-void Writeoutput(local_spins& sys, std::ofstream& file){  
+void Writeoutput(local_spins& sys, std::ofstream& file, MPI_Comm cart_comm){  
     // Loop over all spins, and write out position and spin direction
     // ONLY ONE RANK WRITES AT A TIME!!!!
     //
@@ -234,7 +244,7 @@ void Writeoutput(local_spins& sys, std::ofstream& file){
         pad_i = sys.index_to_padded_index(i);
         file << sys.position[pad_i][0] << " " << sys.position[pad_i][1] << " "  << sys.position[pad_i][2] << " "
             << sys.spin[pad_i][0] << " " << sys.spin[pad_i][1] << " "  << sys.spin[pad_i][2] << " "
-            << energy_calculation_nd(sys,pad_i)
+            << energy_calculation_nd(sys,pad_i, cart_comm)
             << std::endl;
     }
 };
@@ -256,7 +266,8 @@ void exchange_ghost_cells(local_spins &local_sys,
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
-                        MPI_Comm cart_comm){
+                        MPI_Comm cart_comm,
+                        int neighbors[6]){
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> old_state(3);
     int not_flipped = 0;
@@ -268,20 +279,33 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                             << std::endl;
 
     int local_iterations = sys.flips/mpi_size;
+    int request_ghost_index;
     for (int iteration=0; iteration<local_iterations; iteration++){
         // =======================================================
         // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
         // =======================================================
         // First Irecv (non-blocking) from all the neighbors, in case they need a ghost cell
         // If they do, then Send (blocking) the spin of that ghost cell
+        // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
+        
+        // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
+        for (int i=0; i<6;i++){
+            request_ghost_index = 0;
+            MPI_Request request;
+            MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
+            if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
+                MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
+            
+            }
 
+        }
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
         rand_site = localsys.index_to_padded_index(rand_site); 
         
         // Calculate its old energy
-        old_energy = energy_calculation_nd(localsys, rand_site);
+        old_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
 
         // Store its old state. 
         old_state[0] = localsys.spin[rand_site][0];
@@ -298,7 +322,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         flipped++; 
 
         // Calculate if it lowers energy
-        new_energy = energy_calculation_nd(localsys, rand_site);
+        new_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
         if (new_energy > old_energy){
             // If not, see if it should be randomised in direction
             if (verbose) std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
@@ -324,7 +348,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
     /* exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
                         cart_comm); */
-    Calculate_h(localsys);
+    Calculate_h(localsys, cart_comm);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
     std::cout << "Not flipped no. is " << not_flipped << std::endl;
@@ -371,7 +395,7 @@ int main(int argc, char* argv[]){
     MPI_Cart_shift(cart_comm, 0,1,&nleft,&nright);
     MPI_Cart_shift(cart_comm, 1,1,&nbottom,&ntop);
     MPI_Cart_shift(cart_comm, 2,1,&nfront,&nback);
-
+    int neigbors[6] = {nleft, nright, nbottom, ntop, nfront, nback};
 
     const long int offset_x = global_sys.xlen * coords[0] / nproc_x -1;
     const long int offset_y = global_sys.ylen * coords[1] / nproc_y -1;
@@ -455,17 +479,18 @@ int main(int argc, char* argv[]){
     generate_spin_directions(local_sys);
     generate_neighbours(local_sys);
     //Magic TODO h as reduction
-    Calculate_h(local_sys);
+    Calculate_h(local_sys, cart_comm);
     Simulate(global_sys,local_sys,*sdispls, *rdispls, 
                         *sendtypes, *recvtypes,
-                        cart_comm);
+                        cart_comm,
+                        neigbors);
     
     if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
 
     for (int i = 0; i < mpi_size; i++ ){
             if (mpi_rank == i){
                 std::ofstream file(local_sys.filename); // open file
-                Writeoutput(local_sys, file);
+                Writeoutput(local_sys, file, cart_comm);
     }
     }
     MPI_Type_free(&x_type);
