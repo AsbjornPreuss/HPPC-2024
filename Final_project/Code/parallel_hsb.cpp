@@ -190,6 +190,18 @@ double energy_calculation_nd(local_spins &sys, int spin){
     double dot_product;
     for (int i=0; i<6; i++){
         // Calculate the energy with the nearest neighbour with no corners
+
+        // ==========================================================
+        // ========== POSSIBLE IMPLEMENTATION OF GHOST CELLS ========
+        // ==========================================================
+        // If i nearest neighbor is not in this block, Send (blocking)
+        // Request to the appropriate block, and ask for ghost cell.
+        // Then calculate interaction with that cell
+
+        // This might create a timing issue. In that case, make an irecv 
+        // to all neighbors, just before executing this ghost cell. This could catch those errors.
+
+        // Otherwise just calculate the energy
         dot_product = sys.spin[spin][0]*sys.spin[sys.neighbours[spin][i]][0] 
                         + sys.spin[spin][1]* sys.spin[sys.neighbours[spin][i]][1]
                         + sys.spin[spin][2]* sys.spin[sys.neighbours[spin][i]][2];
@@ -257,12 +269,18 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
 
     int local_iterations = sys.flips/mpi_size;
     for (int iteration=0; iteration<local_iterations; iteration++){
+        // =======================================================
+        // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
+        // =======================================================
+        // First Irecv (non-blocking) from all the neighbors, in case they need a ghost cell
+        // If they do, then Send (blocking) the spin of that ghost cell
+
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
-        rand_site = localsys.index_to_padded_index(rand_site);
+        rand_site = localsys.index_to_padded_index(rand_site); 
         
-        // Calculate it's old energy
+        // Calculate its old energy
         old_energy = energy_calculation_nd(localsys, rand_site);
 
         // Store its old state. 
