@@ -9,9 +9,9 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 2,nproc_z=2;
+int nproc_x = 2, nproc_y = 1,nproc_z=1;
 
-bool verbose = false;
+bool verbose = true;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
@@ -231,8 +231,14 @@ void exchange_ghost_cells(local_spins &local_sys,
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
                         MPI_Comm cart_comm){
     int counts[6] = {1,1,1,1,1,1};
-    MPI_Neighbor_alltoallw (local_sys.spin.data(), counts,  &sdispls, &sendtypes,
-                            local_sys.spin.data(), counts,  &rdispls, &recvtypes, cart_comm);
+    // Make Proof of concept work
+    std::vector<double> sx;
+    for (long unsigned int i=0; i<local_sys.spin.size(); i++){
+        sx.push_back(local_sys.spin[i][0]);
+    }
+    // Send ghostcells
+    MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
+                            sx.data(), counts,  &rdispls, &recvtypes, cart_comm);
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
@@ -293,18 +299,19 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         
         // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
         //sys.H = sys.H - old_energy + new_energy;
-    std::cout << " Print 1 " << std::endl;
+
+    
+    } 
     exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
                         cart_comm);
-    std::cout << " Print 2 " << std::endl;
-    }
     Calculate_h(localsys);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
     std::cout << "Not flipped no. is " << not_flipped << std::endl;
     std::cout << "Flipped no. is " << flipped << std::endl;
     std::cout << "Total energy: " << localsys.H << std::endl;
+    
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
@@ -342,9 +349,9 @@ int main(int argc, char* argv[]){
     MPI_Cart_coords(cart_comm, mpi_rank, 3, coords);
 
     int nleft, nright, nbottom, ntop, nfront, nback;
-    MPI_Cart_shift(cart_comm, 2,1,&nleft,&nright);
+    MPI_Cart_shift(cart_comm, 0,1,&nleft,&nright);
     MPI_Cart_shift(cart_comm, 1,1,&nbottom,&ntop);
-    MPI_Cart_shift(cart_comm, 0,1,&nfront,&nback);
+    MPI_Cart_shift(cart_comm, 2,1,&nfront,&nback);
 
 
     const long int offset_x = global_sys.xlen * coords[0] / nproc_x -1;
@@ -375,51 +382,51 @@ int main(int argc, char* argv[]){
      * HEAVILY INSPIRED BY https://github.com/essentialsofparallelcomputing/Chapter8/blob/master/GhostExchange/CartExchange3D_Neighbor/CartExchange.cc
      * LINE 110 AND FORWARD.
     */
-    MPI_Datatype Vector_type;
-    MPI_Type_contiguous(3,MPI_DOUBLE,&Vector_type);
-    MPI_Type_commit(&Vector_type);
+    //MPI_Datatype Vector_type;
+    //MPI_Type_contiguous(3,MPI_DOUBLE,&Vector_type);
+    //MPI_Type_commit(&Vector_type);
     const int array_sizes[] = {local_sys.pad_xlen,local_sys.pad_ylen, local_sys.pad_zlen};
     // send subarrays
     int subarray_sizes_x[] = { 1,local_sys.ylen,local_sys.zlen};
     int subarray_x_start[] = {0,1,1};
     MPI_Datatype x_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_x, subarray_x_start,
-                            MPI_ORDER_C, Vector_type, &x_type);
+                            MPI_ORDER_C, MPI_DOUBLE, &x_type);
     MPI_Type_commit(&x_type);
 
     int subarray_sizes_y[] = {local_sys.xlen, 1, local_sys.zlen};
     int subarray_y_start[] = {1,0,1};
     MPI_Datatype y_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_y, subarray_y_start,
-                            MPI_ORDER_C, Vector_type, &y_type);
+                            MPI_ORDER_C, MPI_DOUBLE, &y_type);
     MPI_Type_commit(&y_type);
 
     int subarray_sizes_z[] = { local_sys.xlen, local_sys.ylen,1};
     int subarray_z_start[] = {1,1,0};
     MPI_Datatype z_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_z, subarray_z_start,
-                            MPI_ORDER_C, Vector_type, &z_type);
+                            MPI_ORDER_C, MPI_DOUBLE, &z_type);
     MPI_Type_commit(&z_type);
-    int xyplane_mult = local_sys.pad_ylen*local_sys.pad_xlen*8*3; //8*3 because datatype is 3 doubles, 
-    int xstride_mult = local_sys.pad_xlen*8*3;
+    int xyplane_mult = local_sys.pad_ylen*local_sys.pad_xlen*8; //8 because datatype is 3 doubles, 
+    int xstride_mult = local_sys.pad_xlen*8;
     // Define displacements of send and receive in bottom top left right.
-    MPI_Aint sdispls[6] = { 8*3,
-                            local_sys.zlen*8*3 ,
+    MPI_Aint sdispls[6] = { 8,
+                            local_sys.zlen*8 ,
                             xstride_mult,
                             local_sys.ylen*xstride_mult,
                             xyplane_mult,
                             local_sys.pad_zlen*xyplane_mult                          
                             };
     MPI_Aint rdispls[6] = {0,
-                            (local_sys.xlen+1)*8*3,
+                            (local_sys.xlen+1)*8,
                             0,
                             (local_sys.ylen+1)*xstride_mult,
                             0,
                             (local_sys.zlen+1)*xyplane_mult,
                             };
     
-    MPI_Datatype sendtypes[6] = {z_type, z_type, y_type, y_type, x_type, x_type};
-    MPI_Datatype recvtypes[6] = {z_type, z_type, y_type, y_type, x_type, x_type};
+    MPI_Datatype sendtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
+    MPI_Datatype recvtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
 
     //========================================================================================
     //========================= END OF GHOST CELL COMMUNICATION SETUP ========================
@@ -441,12 +448,11 @@ int main(int argc, char* argv[]){
                 std::ofstream file(local_sys.filename); // open file
                 Writeoutput(local_sys, file);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     }
     MPI_Type_free(&x_type);
     MPI_Type_free(&y_type);
     MPI_Type_free(&z_type);
-    MPI_Type_free(&Vector_type);
+    //MPI_Type_free(&Vector_type);
 
     MPI_Finalize();
     
