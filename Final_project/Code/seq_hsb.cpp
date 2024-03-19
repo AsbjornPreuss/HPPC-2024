@@ -146,6 +146,7 @@ void Calculate_h(spin_system& sys){
 // Write the spin configurations in the output file.
 void Writeoutput(spin_system& sys, std::ofstream& file){  
     // Loop over all spins, and write out position and spin direction
+    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Spin_energy" << std::endl;
     for (int i = 0; i<sys.n_spins; i++){
         file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
             << sys.spin[i][0] << " " << sys.spin[i][1] << " "  << sys.spin[i][2] << " "

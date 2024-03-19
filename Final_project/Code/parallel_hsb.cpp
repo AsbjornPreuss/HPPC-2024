@@ -217,6 +217,7 @@ void Writeoutput(local_spins& sys, std::ofstream& file){
     // ONLY ONE RANK WRITES AT A TIME!!!!
     //
     int pad_i;
+    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Total_energy" << std::endl;
     for (int i = 0; i<sys.n_spins; i++){
         pad_i = sys.index_to_padded_index(i);
         file << sys.position[pad_i][0] << " " << sys.position[pad_i][1] << " "  << sys.position[pad_i][2] << " "
