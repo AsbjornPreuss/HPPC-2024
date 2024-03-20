@@ -16,7 +16,7 @@ bool verbose = false;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 216; // Number of spins in The system.
+    int n_spins = 64; // Number of spins in The system.
     int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
@@ -137,13 +137,45 @@ class local_spins{
         return z*no_in_padded_layer + y*pad_xlen + x; 
     }
 
+    int padded_index_to_index(int index){
+        int x,y,z;
+        padded_index_to_padded_coordinates(index,x,y,z);
+        x -= 1;
+        y -= 1;
+        z -= 1;
+        return z * xlen * ylen + y * xlen + x;
+    }
     void padded_index_to_padded_coordinates(int index, int& x, int& y, int& z){
         x = index % pad_xlen; // Which row the spin is in
         y = (index/pad_ylen)%pad_ylen; // Which column the spin is in
         z = index / no_in_padded_layer;
     }
-    void padded_coordinates_to_padded_index(int index,int x, int y, int z){
+
+    void index_to_coordinates(int index, int& x, int& y, int& z){
+        x = index % xlen;
+        y = (index/ylen)%ylen;
+        z = index / (ylen * xlen);
+    }
+    void padded_coordinates_to_padded_index(int &index,int x, int y, int z){
         index = x%pad_xlen + (y%pad_ylen) * pad_xlen + (z%pad_zlen) * no_in_padded_layer;
+    }
+
+    void padded_index_to_global_index(int p_index, int &g_index,int global_x, int global_y, int global_z){
+        int local_index = padded_index_to_index(p_index);
+        int x,y,z;
+        index_to_coordinates(local_index,x,y,z);
+        x += offset_x+1;
+        y += offset_y+1;
+        z += offset_z+1;
+        g_index = x%global_x + (y%global_y) * global_x + (z%global_z) * global_x * global_y;
+    }
+
+    void global_index_to_padded_index(int g_index, int &p_index, int global_x, int global_y, int global_z){
+        int x = (g_index % global_x - (offset_x+1)+pad_xlen)%pad_xlen;
+        int y = ((g_index/global_y)%global_y - (offset_y+1)+pad_ylen)%pad_ylen ;
+        int z = (g_index / (global_y * global_x) - (offset_z+1)+pad_zlen)%pad_zlen;
+        std::cout << x<<" "<<y<<" "<<z<<"\n";
+        padded_coordinates_to_padded_index(p_index,x,y,z);
     }
 
     void recv_index_to_padded_index(int r_index, int dir, int p_index){
@@ -202,6 +234,7 @@ void generate_neighbours(local_spins &sys){
             spin_interactions.push_back((spin_x + sys.x_offsets[i])%sys.pad_xlen + 
                                         (spin_y + sys.y_offsets[i])%sys.pad_ylen * sys.pad_xlen + 
                                         (spin_z + sys.z_offsets[i])%sys.pad_zlen * sys.no_in_padded_layer);
+            //std::cout<< "RANK: " << mpi_rank << ". neighbour " << i << " Of padded local index " << spin << " is " << spin_interactions[i] << std::endl;
         }
         sys.neighbours.push_back(spin_interactions);
     }
@@ -212,28 +245,6 @@ double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
     double dot_product;
     for (int i=0; i<6; i++){
         // Calculate the energy with the nearest neighbour with no corners
-
-        // ==========================================================
-        // ========== POSSIBLE IMPLEMENTATION OF GHOST CELLS ========
-        // ==========================================================
-        // If i nearest neighbor is not in this block, Send (blocking)
-        // TODO: Make proper indicator that neighbor is not in this block
-        // TODO: Make proper indicator of which neighbor the request for spin should go to
-        // TODO: Make proper calculation of which index is needed
-        int neighbor = 1;
-        if (sys.neighbours[spin][i] == -1){
-            std::vector<double> ghost_spin;
-            MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neighbor, ghost_cell_request, cart_comm);
-
-            //MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
-        }
-        // Request to the appropriate block, and ask for ghost cell.
-        // Then calculate interaction with that cell
-
-        // This might create a timing issue. In that case, make an irecv 
-        // to all neighbors, just before executing this ghost cell. This could catch those errors.
-
-        // Otherwise just calculate the energy
         dot_product = sys.spin[spin][0]*sys.spin[sys.neighbours[spin][i]][0] 
                         + sys.spin[spin][1]* sys.spin[sys.neighbours[spin][i]][1]
                         + sys.spin[spin][2]* sys.spin[sys.neighbours[spin][i]][2];
@@ -283,22 +294,22 @@ void exchange_ghost_cells(local_spins &local_sys,
         sz.push_back(local_sys.spin[i][2]);
     }
     // Send ghostcells
-    std::cout << "Rank " << mpi_rank << " Starting exchange Size of spins is " << sx.size() << std::endl;
-    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
-                            sx.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
-    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sy.data(), counts,  &sdispls, &sendtypes,
-                            sy.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
-    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sz.data(), counts,  &sdispls, &sendtypes,
-                            sz.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
+    if(verbose) std::cout << "Rank " << mpi_rank << " Starting exchange Size of spins is " << sx.size() << std::endl;
+    MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
+                            sx.data(), counts,  &rdispls, &recvtypes, cart_comm); 
+    MPI_Neighbor_alltoallw (sy.data(), counts,  &sdispls, &sendtypes,
+                            sy.data(), counts,  &rdispls, &recvtypes, cart_comm); 
+    MPI_Neighbor_alltoallw (sz.data(), counts,  &sdispls, &sendtypes,
+                            sz.data(), counts,  &rdispls, &recvtypes, cart_comm); 
     for(uint64_t i=0; i<local_sys.spin.size();i++){
         local_sys.spin[i] = {sx[i],sy[i],sz[i]};
     }
-    std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of temp is" << sx.size() <<  std::endl;
+    if(verbose) std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of temp is" << sx.size() <<  std::endl;
 
 };
 
 // This function checks if the index is on the edge of the block, in 3 dimensions.
-void check_if_we_are_on_edge(local_spins &local_sys, int &check_index,std::vector<int> edges){
+void check_if_we_are_on_edge(local_spins &local_sys, int &check_index,std::vector<int> &edges){
     int x,y,z;
     local_sys.padded_index_to_padded_coordinates(check_index, x, y, z);
     if(z==1) edges[0]=1;
@@ -312,7 +323,7 @@ void check_if_we_are_on_edge(local_spins &local_sys, int &check_index,std::vecto
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
                         MPI_Comm cart_comm,
-                        int neighbors[6]){
+                        int neighbors[6],spin_system& global_sys){
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> old_state(3);
     int not_flipped = 0;
@@ -328,8 +339,11 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
     exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
                         cart_comm);
-    std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
+    if(verbose) std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
+    std::cout << "Rank " << mpi_rank << " Neighbors: " << neighbors[0] << " " << neighbors[1] << " " << neighbors[2] << " " << neighbors[3] << " " <<
+        neighbors[4] << " " << neighbors[5] << std::endl;
     for (int iteration=0; iteration<local_iterations; iteration++){
+        if (iteration%1 == 0) std::cout<<"Iter "<<iteration << " on " << mpi_rank<<"\n";
         // =======================================================
         // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
         // =======================================================
@@ -338,30 +352,33 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
         
         // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
-        int flag[6] = {0, 0, 0, 0, 0, 0};
+        
+        
         MPI_Status status;
+        if(verbose) std::cout << "Rank " << mpi_rank << " off x " << localsys.offset_x << " off y " <<localsys.offset_y<< " off z " <<localsys.offset_z << std::endl;
         for (int i=0; i<6;i++){
             double received[3];
-            int index;
-            int thisFlag = flag[i];
+            int index = -1;
+            int thisFlag = 0;
             MPI_Iprobe(neighbors[i],MPI_ANY_TAG,cart_comm,&thisFlag,&status);
-            if(flag[i]){
-            int index_received;
-            MPI_Status status2;
-            MPI_Recv(&received, 3, MPI_DOUBLE, neighbors[i], MPI_ANY_TAG, cart_comm, &status2);
-            index_received = status2.MPI_TAG;//MPI_Status_get_tag(&status2,&index_received);
-            localsys.recv_index_to_padded_index(index_received,i,index);
-            localsys.spin[index][0] = received[0];
-            localsys.spin[index][1] = received[1];
-            localsys.spin[index][2] = received[2];
-                
+            if(thisFlag){
+                int index_received;
+                MPI_Status status2;
+                MPI_Recv(&received, 3, MPI_DOUBLE, neighbors[i], MPI_ANY_TAG, cart_comm, &status2);
+                index_received = status2.MPI_TAG;
+                std::cout << "Receiving update from " << index_received<<" "<<index<<"\n";
+                localsys.global_index_to_padded_index(index_received,index,global_sys.xlen, global_sys.ylen, global_sys.zlen);
+                localsys.spin[index][0] = received[0];
+                localsys.spin[index][1] = received[1];
+                localsys.spin[index][2] = received[2];
+                std::cout<<"Finished update on " <<index_received<<" "<<index<< " "<<mpi_rank<<"\n";
             }
-            }
-        int flip = 0;
+        }
+        bool flip = false;
         // Choose a random spin site
-        srand(iteration);
+        srand(iteration+mpi_rank);
         int rand_site = rand()%(localsys.n_spins);
-        rand_site = localsys.index_to_padded_index(rand_site); 
+        rand_site = localsys.index_to_padded_index(rand_site);
         
         // Calculate its old energy
         old_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
@@ -379,7 +396,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                             sin(spin_azimuthal)*sin(spin_polar),
                             cos(spin_azimuthal)};
         flipped++; 
-        flip = 1;
+        flip = true;
         // Calculate if it lowers energy
         new_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
         if (new_energy > old_energy){
@@ -395,32 +412,28 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                 };
                 not_flipped++;
                 flipped--;
-                flip = 0;
+                flip = false;
                 new_energy = old_energy;
             }
         }
-        if(flip==1){
+        if(flip){
             std::vector<int> edges = {0,0,0,0,0,0};
             check_if_we_are_on_edge(localsys,rand_site,edges);
             for(int i=0;i<6;i++){
                 if(edges[i]==1){
                     int send_index;
                     MPI_Request request;
-                    localsys.padded_index_to_send_index(rand_site,i,send_index);
+                    localsys.padded_index_to_global_index(rand_site, send_index, global_sys.xlen, global_sys.ylen, global_sys.zlen);
                     double send_spin[3] = {localsys.spin[rand_site][0],localsys.spin[rand_site][1],localsys.spin[rand_site][2]};
                     MPI_Isend(&send_spin,3,MPI_DOUBLE,neighbors[i],send_index,cart_comm,&request);
                 }
             }
-        }
-        
-        // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
-        //sys.H = sys.H - old_energy + new_energy;
-
-    
-    } 
-    /* exchange_ghost_cells(localsys,sdispls, rdispls, 
-                        sendtypes, recvtypes,
-                        cart_comm); */
+        }    
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+    std::cout <<"Finished my jobs /"<<mpi_rank<<"\n";
+    MPI_Barrier(cart_comm);
+   
     Calculate_h(localsys, cart_comm);
     auto end = std::chrono::steady_clock::now();
     std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
@@ -446,7 +459,7 @@ int main(int argc, char* argv[]){
     MPI_Get_processor_name(processor_name, &name_len);
 
     // Print off a hello world message
-    std::cout << "Heisenberg running on " << processor_name
+    if(verbose) std::cout << "Heisenberg running on " << processor_name
               << ", rank " << mpi_rank << " out of " << mpi_size << std::endl;
 
     }
@@ -501,7 +514,7 @@ int main(int argc, char* argv[]){
     //MPI_Datatype Vector_type;
     //MPI_Type_contiguous(3,MPI_DOUBLE,&Vector_type);
     //MPI_Type_commit(&Vector_type);
-    const int array_sizes[] = {local_sys.pad_xlen,local_sys.pad_ylen, local_sys.pad_zlen};
+    
     // send subarrays
     /*int subarray_sizes_x[] = { 1,local_sys.ylen,local_sys.zlen};
     int subarray_x_start[] = {0,1,1};
@@ -544,6 +557,7 @@ int main(int argc, char* argv[]){
     MPI_Datatype sendtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
     MPI_Datatype recvtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
     */
+    const int array_sizes[] = {local_sys.pad_xlen,local_sys.pad_ylen, local_sys.pad_zlen};
     int subarray_sizes_h[] = { local_sys.zlen,local_sys.ylen,1};
     int subarray_h_start[] = {1,1,0};
     MPI_Datatype h_type;
@@ -599,7 +613,7 @@ int main(int argc, char* argv[]){
     Simulate(global_sys,local_sys,*sdispls, *rdispls, 
                         *sendtypes, *recvtypes,
                         cart_comm,
-                        neigbors);
+                        neigbors, global_sys);
     MPI_Barrier(cart_comm);
     MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
     if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
