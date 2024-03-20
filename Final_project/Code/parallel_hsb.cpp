@@ -9,7 +9,7 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 2,nproc_z=2;
+int nproc_x = 2, nproc_y = 1,nproc_z=1;
 enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = true;
@@ -69,11 +69,7 @@ class spin_system {
     xlen = n_spins_row;
     ylen = n_spins_row;
     zlen = n_spins_row;
-<<<<<<< Updated upstream
-        
-=======
     std::cout << "Nspins row " << n_spins_row << std::endl;
->>>>>>> Stashed changes
     }
 };
 
@@ -203,14 +199,6 @@ double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
         // TODO: Make proper indicator that neighbor is not in this block
         // TODO: Make proper indicator of which neighbor the request for spin should go to
         // TODO: Make proper calculation of which index is needed
-<<<<<<< Updated upstream
-        //int neighbor = 1;
-        //if (sys.neighbours[spin][i] == -1){
-        //    std::vector<double> ghost_spin;
-        //    MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neighbor, ghost_cell_request, cart_comm);
-        //    MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
-        //}
-=======
         int neighbor = 1;
         if (sys.neighbours[spin][i] == -1){
             std::vector<double> ghost_spin;
@@ -218,7 +206,6 @@ double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
 
             //MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
         }
->>>>>>> Stashed changes
         // Request to the appropriate block, and ask for ghost cell.
         // Then calculate interaction with that cell
 
@@ -331,30 +318,16 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
         
         // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
-<<<<<<< Updated upstream
-        //for (int i=0; i<6;i++){
-        //    request_ghost_index = 0;
-        //    MPI_Request request;
-        //    MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
-        //    if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
-        //        MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
-        //    
-        //    }
-
-        //}
-=======
         for (int i=0; i<6;i++){
             request_ghost_index = 0;
-            int ghost_flag;
-            MPI_Status probe_status;
             MPI_Request request;
-            MPI_Iprobe(neighbors[i], ghost_cell_request, cart_comm, &ghost_flag, &probe_status);
-                if (ghost_flag){ // If a index is received, that should be sent to the neighbor, send it to them
-                    MPI_Recv(&request_ghost_index,3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm, &probe_status);
-                    // Update spin system
+            MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
+            if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
+                MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
+            
             }
+
         }
->>>>>>> Stashed changes
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
@@ -462,12 +435,8 @@ int main(int argc, char* argv[]){
     const long int end_z = global_sys.zlen * (coords[2]+1) / nproc_z +1;
 
     std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
-    local_spins local_sys(global_sys, 
-<<<<<<< Updated upstream
+    local_spins local_sys(global_sys,
             end_x-offset_x-2, end_y-offset_y-2, end_z-offset_z-2,
-=======
-            end_x-offset_x - 2, end_y-offset_y -2 , end_z-offset_z -2,
->>>>>>> Stashed changes
             offset_x, offset_y, offset_z);
     //========================================================================================
     //========================= START OF GHOST CELL COMMUNICATION SETUP ======================
