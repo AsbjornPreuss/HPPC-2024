@@ -9,14 +9,14 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 1,nproc_z=1;
+int nproc_x = 2, nproc_y = 2,nproc_z=2;
 enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = true;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 125; // Number of spins in The system.
+    int n_spins = 216; // Number of spins in The system.
     int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
@@ -66,9 +66,9 @@ class spin_system {
         }
     n_spins_row = pow(float(n_spins),1./float(n_dims)); //Equal size in all dimensions
 
-    xlen = x_dist*n_spins_row;
-    ylen = y_dist*n_spins_row;
-    zlen = z_dist*n_spins_row;
+    xlen = n_spins_row;
+    ylen = n_spins_row;
+    zlen = n_spins_row;
         
     }
 };
@@ -199,12 +199,12 @@ double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
         // TODO: Make proper indicator that neighbor is not in this block
         // TODO: Make proper indicator of which neighbor the request for spin should go to
         // TODO: Make proper calculation of which index is needed
-        int neighbor = 1;
-        if (sys.neighbours[spin][i] == -1){
-            std::vector<double> ghost_spin;
-            MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neigbor, ghost_cell_request, cart_comm);
-            MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
-        }
+        //int neighbor = 1;
+        //if (sys.neighbours[spin][i] == -1){
+        //    std::vector<double> ghost_spin;
+        //    MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neighbor, ghost_cell_request, cart_comm);
+        //    MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
+        //}
         // Request to the appropriate block, and ask for ghost cell.
         // Then calculate interaction with that cell
 
@@ -256,12 +256,25 @@ void exchange_ghost_cells(local_spins &local_sys,
     int counts[6] = {1,1,1,1,1,1};
     // Make Proof of concept work
     std::vector<double> sx;
+    std::vector<double> sy;
+    std::vector<double> sz;
+    
     for (uint64_t i=0; i<local_sys.spin.size(); i++){
         sx.push_back(local_sys.spin[i][0]);
+        sy.push_back(local_sys.spin[i][1]);
+        sz.push_back(local_sys.spin[i][2]);
     }
     // Send ghostcells
-    std::cout << "MPI Error Code: "<< MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
+    std::cout << "Starting Exchange" << std::endl;
+    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
                             sx.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
+    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sy.data(), counts,  &sdispls, &sendtypes,
+                            sy.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
+    std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sz.data(), counts,  &sdispls, &sendtypes,
+                            sz.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
+    for(uint64_t i=0; i<local_sys.spin.size();i++){
+        local_sys.spin[i] = {sx[i],sy[i],sz[i]};
+    }
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
@@ -280,6 +293,11 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
 
     int local_iterations = sys.flips/mpi_size;
     int request_ghost_index;
+
+    exchange_ghost_cells(localsys,sdispls, rdispls, 
+                        sendtypes, recvtypes,
+                        cart_comm);
+    std::cout << " Exchanged Ghost Cells" << std::endl;
     for (int iteration=0; iteration<local_iterations; iteration++){
         // =======================================================
         // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
@@ -289,16 +307,16 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
         
         // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
-        for (int i=0; i<6;i++){
-            request_ghost_index = 0;
-            MPI_Request request;
-            MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
-            if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
-                MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
-            
-            }
+        //for (int i=0; i<6;i++){
+        //    request_ghost_index = 0;
+        //    MPI_Request request;
+        //    MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
+        //    if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
+        //        MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
+        //    
+        //    }
 
-        }
+        //}
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
@@ -405,9 +423,9 @@ int main(int argc, char* argv[]){
     const long int end_y = global_sys.ylen * (coords[1]+1) / nproc_y +1; 
     const long int end_z = global_sys.zlen * (coords[2]+1) / nproc_z +1;
 
-
+    std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
     local_spins local_sys(global_sys, 
-            end_x-offset_x, end_y-offset_y, end_z-offset_z,
+            end_x-offset_x-2, end_y-offset_y-2, end_z-offset_z-2,
             offset_x, offset_y, offset_z);
     //========================================================================================
     //========================= START OF GHOST CELL COMMUNICATION SETUP ======================
@@ -484,7 +502,8 @@ int main(int argc, char* argv[]){
                         *sendtypes, *recvtypes,
                         cart_comm,
                         neigbors);
-    
+    MPI_Barrier(cart_comm);
+    MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
     if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
 
     for (int i = 0; i < mpi_size; i++ ){
