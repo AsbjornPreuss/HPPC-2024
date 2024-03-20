@@ -148,20 +148,20 @@ class local_spins{
 
     void recv_index_to_padded_index(int r_index, int dir, int p_index){
         int x,y,z;
-        if(dir == 0) { x = 1; y = r_index%pad_ylen; z = r_index/pad_ylen;}
-        if(dir == 1) { x = xlen; y = r_index%pad_ylen; z = r_index/pad_ylen;}
+        if(dir == 4) { x = 1; y = r_index%pad_ylen; z = r_index/pad_ylen;}
+        if(dir == 5) { x = xlen; y = r_index%pad_ylen; z = r_index/pad_ylen;}
         if(dir == 2){  y = 1; x = r_index%pad_xlen; z = r_index/pad_xlen;}
         if(dir == 3){  y = ylen; x = r_index%pad_xlen; z = r_index/pad_xlen;}
-        if(dir == 4){  z = 1; x = r_index%pad_xlen; y = r_index/pad_xlen;}
-        if(dir == 5){  z = zlen; x = r_index%pad_xlen; y = r_index/pad_xlen;}
+        if(dir == 0){  z = 1; x = r_index%pad_xlen; y = r_index/pad_xlen;}
+        if(dir == 1){  z = zlen; x = r_index%pad_xlen; y = r_index/pad_xlen;}
         padded_coordinates_to_padded_index(p_index,x,y,z);   
     }
     void padded_index_to_send_index(int p_index, int dir, int s_index){
         int x,y,z;
         padded_index_to_padded_coordinates(p_index, x, y, z);
-        if(dir == 0 || dir == 1) {s_index = y + z * pad_ylen;}
+        if(dir == 4 || dir == 5) {s_index = y + z * pad_ylen;}
         if(dir == 2 || dir == 3) {s_index = x + z * pad_xlen;}
-        if(dir == 4 || dir == 5) {s_index = z + y * pad_xlen;}
+        if(dir == 0 || dir == 1) {s_index = z + y * pad_xlen;}
     }
 };
 
@@ -301,12 +301,12 @@ void exchange_ghost_cells(local_spins &local_sys,
 void check_if_we_are_on_edge(local_spins &local_sys, int &check_index,std::vector<int> edges){
     int x,y,z;
     local_sys.padded_index_to_padded_coordinates(check_index, x, y, z);
-    if(x==1) edges[0]=1;
-    if(x==local_sys.xlen) edges[1]=1;
+    if(z==1) edges[0]=1;
+    if(z==local_sys.zlen) edges[1]=1;
     if(y==1) edges[2]=1;
     if(y==local_sys.ylen) edges[3]=1;
-    if(z==1) edges[2]=1;
-    if(y==local_sys.zlen) edges[5]=1;
+    if(x==1) edges[2]=1;
+    if(x==local_sys.xlen) edges[5]=1;
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
