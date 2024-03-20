@@ -1,4 +1,5 @@
 \documentclass{article}
+\usepackage{hyperref}
 \usepackage{color}
 \usepackage{placeins}
 \usepackage{listings}
@@ -41,9 +42,11 @@ Then, on lines 306-318, we determine the size and location of the section of the
 
 The next thing to do is to define the datatypes to use when exchanging ghost cells. We use MPI\_Type\_create\_subarray for both the horizontal and vertical exchanges, so that when doing the exchange, each rank only has to send one element of either horiz\_type or vert\_type to each of its its neighbours. These are defined on lines 340-365. Now we can begin the simulation.
 
-Most of the simulation proceeds as normal, only the ghost cell exchanges were changed. Here we make use of the MPI\_Neighbor\_alltoallw function, which allowed us to send all the ghost cells between ranks, neatly packaged in the subarray types, in two lines. Then, after each completed timestep, we add an MPI\_Barrier.  This is moslty just a precaution, as it shouldn't be necessary to include, but as each rank will wait for all the others to arrive in the ghost cell exchange, it should also not cause any significant decrease in performance. With this the main part of the code runs in parallel. 
+Most of the simulation proceeds as normal, only the ghost cell exchanges were changed. Here we make use of the MPI\_Neighbor\_alltoallw function, which allowed us to send all the ghost cells between ranks, neatly packaged in the subarray types, in two lines. Then, after each completed timestep, we add an MPI\_Barrier.  This is mostly just a precaution, as it shouldn't be necessary to include, but as each rank will wait for all the others to arrive in the ghost cell exchange, it should also not cause any significant decrease in performance. With this the main part of the code runs in parallel. 
 
-Next step is to gather all the data properly rank 0, so it can be written out to a file. Here, out solution is not the most elegant. Before the simulation starts, we use MPI\_Gather to collect the sizes of all the ranks' sections on rank 0, so that later, when rank 0 has to gather the whole world, we can use MPI\_Gatherv to collect all the world data. The inelegant part lies in the fact that we take all the world cells on each rank, convert them to a 1D vector, and collect them all as a 1D vector on rank 0, one flattened world after another. This is then written out in a way that, when loaded in with the visual.ipynb notebook, it does not look sensible. Here, however, we reformat the data, and the expected temperature map of the world is recovered. 
+Next step is to gather all the data properly rank 0, so it can be written out to a file. Here, our solution is not the most elegant. Before the simulation starts, we use MPI\_Gather to collect the sizes of all the ranks' sections on rank 0, so that later, when rank 0 has to gather the whole world, we can use MPI\_Gatherv to collect all the world data. The inelegant part lies in the fact that we take all the world cells on each rank, convert them to a 1D vector without any ghost cells, and collect them all as a 1D vector on rank 0, one flattened world after another. This is then written out in a way that, when loaded in with the visual.ipynb notebook, it does not look sensible. Here, however, we reformat the data, in our own version of visual.ipynb and the expected temperature map of the world is recovered. 
+
+A gif of this for the small world can be seen attached to this hand-ind on Absalon.
 
 Finally, we want to parallelize the checksum calculation as well as the min, max, and mean calculations. We do this by first letting each rank calculate its own sum - or minimum or maximum - and then doing a reduction onto rank 0, which is then left with the global sum, minimum or maximum. In the mean case, rank 0 then divides the total sum by the global world size to find the global mean. Doing this, we reproduce the values on the sequential version.
 
@@ -62,19 +65,33 @@ Finally, we want to parallelize the checksum calculation as well as the min, max
 %There can be extra points for elegant solutions or going beyond the minimum (e.g. looking at hybrid
 %OpenMP + MPI)
 \section{Strong scaling using SLURM}
-The parallelized program was run on N cores, where N goes from 1 to 192. This was done for both the medium and small, but the large was only run on 1 to 200 cores, as this took longer to run. The effectivity for each run was calculated, and Amdahls law was fitted to the data points for the small, medium, and large results.
+The parallelized program was run on N cores, where N goes from 1 to 252. This was done for both the medium and small, but the large was only run on 1 to 220 cores, as this took longer to run. The effectivity for each run was calculated, and Amdahl's law was fitted to the data points for the small, medium, and large results.
 These fits and results can be seen on figure \ref{fig:Efficiency_plot}. 
 
-It is clear, that the exchange of ghost lines take too large an overhead for the small model, making the program less efficient when split up between more than 30 cores. In contrast the scaling of the medium model shows that the efficiency increases, until a new node has to be used. After this, the overhead costs also make the program run slower.
+The fits to Ahmdal's law indicate that the parallel part of the code is for the large model, 90\%, the medium model 97\% and the small model 80\%. These fitted values of course carry an uncertainty with them, as clearly visible from \cref{fig:Efficiency_plot}, thus these cannot be treated as exact results, and especially the value for the medium sized model, should be taken with a grain of salt.
+%fits are highly uncertain as can be seen on the figure, but their uncertainties were not estimated properly in this project.
+
+A reason for this high uncertainty is probably that, by error, we had excluded the exclusive keyword from our bash script. This is probably the reason for the great uncertainty in the medium data points. That being said, the different sized models were run a total of 32, 16, or 8 times for each amount of ranks. This naturally leads to a larger uncertainty on the larger models.
+
+A point we can make with the data is that the exchange of ghost lines take too large an overhead for the small model, making the program less efficient when split up between more than 30 cores. In contrast the scaling of the medium model shows that the efficiency increases, until a new node has to be used. After this, the overhead costs also make the program run slower. The large model scales very nicely throughout the 252 cores, without any large jumps due to overhead costs. 
+
+Furthermore, not all memory splits are equal. One good example is going from $32, (8\times 4)$ to $34, (17\times 2)$. In the case of the small model this increased the run time by 10\%. As we went from having a width of 45 to 21 cells, this introduces an incredibly large ghost-cell overhead. For this reason, the large model was only run with integer values having nice decompositions: e.g. $28, (7\times 4)$, $112, (14\times 8)$, and $220, (20\times 11)$.360/8 
 
 
 \begin{figure}
     \centering
-    \includegraphics[width=0.5\textwidth]{Assignment_1_SIR/Report/Images/SIR_plot_dt0_001_pop1e6.png}
+    \includegraphics[width=0.7\textwidth]{Assignment_6_Flat_earth/Report/figures/Ahmdahls_law_fit.png}
     \caption{Efficiency plot of the different model sizes.}
     \label{fig:Efficiency_plot}
 \end{figure}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.7\textwidth]{Assignment_6_Flat_earth/Report/figures/Efficiency_data.png}
+    \caption{All the data gathered in the scaling. Notice the jumps in efficiency per core at 64 cores and again at 128 cores.}
+    \label{fig:enter-label}
+\end{figure}
 \FloatBarrier
+\newpage
 \section{Source Code}
 \label{sec:source}
 \lstinputlisting[language=c++]{../fwc_parallel.cpp}
