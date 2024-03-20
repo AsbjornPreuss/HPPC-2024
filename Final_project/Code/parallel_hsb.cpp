@@ -24,9 +24,9 @@ class spin_system {
     int y_offsets[6] = {0,-1,1,0,0,0};
     int z_offsets[6] = {0,0,0,0,-1,1};
 
-    int x_dist = 10;
-    int y_dist = 10;
-    int z_dist = 10;
+    int x_dist = 1;
+    int y_dist = 1;
+    int z_dist = 1;
 
     int nearest_neighbours = 1; // Number of nearest neighbour interactions to be calculated
     int xlen, ylen, zlen;
@@ -34,7 +34,7 @@ class spin_system {
     double H; // Total energy of the system;
     double B = 0; // Magnetic field in z direction
     double Temperature = 1; // Temperature of the system.
-    std::string filename = "seq_out.txt"; // Output file.
+    std::string filename = "parallel_out.txt"; // Output file.
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
     std::vector<std::vector<int>>    neighbours; // 2*n_dims by n_spins matrix, defining the neighbour indices of each cell, so they need only be calculated once.
@@ -64,12 +64,16 @@ class spin_system {
                 std::cout << "---> error: the argument type is not recognized \n";
             }
         }
-    n_spins_row = pow(float(n_spins),1./float(n_dims)); //Equal size in all dimensions
+    n_spins_row = cbrt(double(n_spins)); //Equal size in all dimensions
 
     xlen = n_spins_row;
     ylen = n_spins_row;
     zlen = n_spins_row;
+<<<<<<< Updated upstream
         
+=======
+    std::cout << "Nspins row " << n_spins_row << std::endl;
+>>>>>>> Stashed changes
     }
 };
 
@@ -147,9 +151,9 @@ class local_spins{
 
 // Function that generates rectangular positions for alle the spins in the system, 
 void generate_positions_box(local_spins &sys){
-        for (double i=0; i<sys.pad_xlen; i++)
-        for (double j=0; j<sys.pad_ylen; j++)
         for (double k=0; k<sys.pad_zlen; k++)
+        for (double j=0; j<sys.pad_ylen; j++)
+        for (double i=0; i<sys.pad_xlen; i++)
             sys.position.push_back({i*sys.x_dist, j*sys.y_dist, k*sys.z_dist});
 };
 
@@ -199,12 +203,22 @@ double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
         // TODO: Make proper indicator that neighbor is not in this block
         // TODO: Make proper indicator of which neighbor the request for spin should go to
         // TODO: Make proper calculation of which index is needed
+<<<<<<< Updated upstream
         //int neighbor = 1;
         //if (sys.neighbours[spin][i] == -1){
         //    std::vector<double> ghost_spin;
         //    MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neighbor, ghost_cell_request, cart_comm);
         //    MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
         //}
+=======
+        int neighbor = 1;
+        if (sys.neighbours[spin][i] == -1){
+            std::vector<double> ghost_spin;
+            MPI_Send(&sys.neighbours[spin][i], 1, MPI_INT, neighbor, ghost_cell_request, cart_comm);
+
+            //MPI_Recv(&ghost_spin, 3, MPI_DOUBLE, neighbor, ghost_cell_answer, cart_comm)
+        }
+>>>>>>> Stashed changes
         // Request to the appropriate block, and ask for ghost cell.
         // Then calculate interaction with that cell
 
@@ -239,6 +253,7 @@ void Writeoutput(local_spins& sys, std::ofstream& file, MPI_Comm cart_comm){
     // ONLY ONE RANK WRITES AT A TIME!!!!
     //
     int pad_i;
+    
     file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Spin_energy" << std::endl;
     for (int i = 0; i<sys.n_spins; i++){
         pad_i = sys.index_to_padded_index(i);
@@ -246,6 +261,9 @@ void Writeoutput(local_spins& sys, std::ofstream& file, MPI_Comm cart_comm){
             << sys.spin[pad_i][0] << " " << sys.spin[pad_i][1] << " "  << sys.spin[pad_i][2] << " "
             << energy_calculation_nd(sys,pad_i, cart_comm)
             << std::endl;
+        std::cout << "Running file write: " << i << " th iteration" << ": N spins is " << sys.n_spins
+
+        << std::endl;
     }
 };
 
@@ -275,6 +293,12 @@ void exchange_ghost_cells(local_spins &local_sys,
     for(uint64_t i=0; i<local_sys.spin.size();i++){
         local_sys.spin[i] = {sx[i],sy[i],sz[i]};
     }
+};
+
+// This function checks if the index is on the edge of the block, in 3 dimensions.
+int check_if_we_are_on_edge(local_spins &local_sys, int check_index){
+    
+    return 1;
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
@@ -307,6 +331,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
         
         // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
+<<<<<<< Updated upstream
         //for (int i=0; i<6;i++){
         //    request_ghost_index = 0;
         //    MPI_Request request;
@@ -317,6 +342,19 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         //    }
 
         //}
+=======
+        for (int i=0; i<6;i++){
+            request_ghost_index = 0;
+            int ghost_flag;
+            MPI_Status probe_status;
+            MPI_Request request;
+            MPI_Iprobe(neighbors[i], ghost_cell_request, cart_comm, &ghost_flag, &probe_status);
+                if (ghost_flag){ // If a index is received, that should be sent to the neighbor, send it to them
+                    MPI_Recv(&request_ghost_index,3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm, &probe_status);
+                    // Update spin system
+            }
+        }
+>>>>>>> Stashed changes
         // Choose a random spin site
         srand(iteration);
         int rand_site = rand()%(localsys.n_spins);
@@ -425,7 +463,11 @@ int main(int argc, char* argv[]){
 
     std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
     local_spins local_sys(global_sys, 
+<<<<<<< Updated upstream
             end_x-offset_x-2, end_y-offset_y-2, end_z-offset_z-2,
+=======
+            end_x-offset_x - 2, end_y-offset_y -2 , end_z-offset_z -2,
+>>>>>>> Stashed changes
             offset_x, offset_y, offset_z);
     //========================================================================================
     //========================= START OF GHOST CELL COMMUNICATION SETUP ======================
@@ -506,12 +548,10 @@ int main(int argc, char* argv[]){
     MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
     if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
 
-    for (int i = 0; i < mpi_size; i++ ){
-            if (mpi_rank == i){
+    if (mpi_rank == 0){
                 std::ofstream file(local_sys.filename); // open file
                 Writeoutput(local_sys, file, cart_comm);
-    }
-    }
+    } 
     MPI_Type_free(&x_type);
     MPI_Type_free(&y_type);
     MPI_Type_free(&z_type);
