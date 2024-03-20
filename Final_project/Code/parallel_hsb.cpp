@@ -9,10 +9,10 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 1,nproc_z=1;
+int nproc_x = 2, nproc_y = 2,nproc_z=2;
 enum {ghost_cell_request, ghost_cell_answer};
 
-bool verbose = false;
+bool verbose = true;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
@@ -245,6 +245,7 @@ void Writeoutput(spin_system& sys, std::ofstream& file, MPI_Comm cart_comm){
     }
 };
 
+
 void exchange_ghost_cells(local_spins &local_sys,
                         MPI_Aint &sdispls, MPI_Aint &rdispls, 
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
@@ -261,7 +262,7 @@ void exchange_ghost_cells(local_spins &local_sys,
         sz.push_back(local_sys.spin[i][2]);
     }
     // Send ghostcells
-    std::cout << "Starting Exchange" << std::endl;
+    std::cout << "Rank " << mpi_rank << " Starting exchange Size of spins is " << sx.size() << std::endl;
     std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
                             sx.data(), counts,  &rdispls, &recvtypes, cart_comm) << std::endl; 
     std::cout << "MPI x-dir Error Code: "<< MPI_Neighbor_alltoallw (sy.data(), counts,  &sdispls, &sendtypes,
@@ -271,6 +272,8 @@ void exchange_ghost_cells(local_spins &local_sys,
     for(uint64_t i=0; i<local_sys.spin.size();i++){
         local_sys.spin[i] = {sx[i],sy[i],sz[i]};
     }
+    std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of temp is" << sx.size() <<  std::endl;
+
 };
 
 // This function checks if the index is on the edge of the block, in 3 dimensions.
@@ -295,11 +298,10 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
 
     int local_iterations = sys.flips/mpi_size;
     int request_ghost_index;
-
-    /* exchange_ghost_cells(localsys,sdispls, rdispls, 
+    exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
-                        cart_comm); */
-    std::cout << " Exchanged Ghost Cells" << std::endl;
+                        cart_comm);
+    std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
     for (int iteration=0; iteration<local_iterations; iteration++){
         // =======================================================
         // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
@@ -315,7 +317,9 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
             MPI_Irecv(&request_ghost_index, 1, MPI_INT, neighbors[i], ghost_cell_request, cart_comm, &request);
             if (request_ghost_index){ // If a index is received, that should be sent to the neighbor, send it to them
                 MPI_Send(&localsys.spin[request_ghost_index], 3, MPI_DOUBLE, neighbors[i], ghost_cell_answer, cart_comm);
+            
             }
+
         }
         // Choose a random spin site
         srand(iteration);
@@ -400,7 +404,7 @@ int main(int argc, char* argv[]){
     spin_system global_sys({argv, argv+argc});
 
     //Setup MPI
-    int dims[3] = {nproc_x, nproc_y, nproc_z};
+    int dims[3] = {nproc_z, nproc_y, nproc_x};
     int periods[3] = {1,1,1};
     int coords[3];
     MPI_Dims_create(mpi_size, 3, dims);
@@ -410,18 +414,18 @@ int main(int argc, char* argv[]){
     MPI_Cart_coords(cart_comm, mpi_rank, 3, coords);
 
     int nleft, nright, nbottom, ntop, nfront, nback;
-    MPI_Cart_shift(cart_comm, 0,1,&nleft,&nright);
+    MPI_Cart_shift(cart_comm, 2,1,&nleft,&nright);
     MPI_Cart_shift(cart_comm, 1,1,&nbottom,&ntop);
-    MPI_Cart_shift(cart_comm, 2,1,&nfront,&nback);
+    MPI_Cart_shift(cart_comm, 0,1,&nfront,&nback);
     int neigbors[6] = {nleft, nright, nbottom, ntop, nfront, nback};
 
-    const long int offset_x = global_sys.xlen * coords[0] / nproc_x -1;
+    const long int offset_x = global_sys.xlen * coords[2] / nproc_x -1;
     const long int offset_y = global_sys.ylen * coords[1] / nproc_y -1;
-    const long int offset_z = global_sys.zlen * coords[2] / nproc_z -1;
+    const long int offset_z = global_sys.zlen * coords[0] / nproc_z -1;
 
-    const long int end_x = global_sys.xlen * (coords[0]+1) / nproc_x +1; 
+    const long int end_x = global_sys.xlen * (coords[2]+1) / nproc_x +1; 
     const long int end_y = global_sys.ylen * (coords[1]+1) / nproc_y +1; 
-    const long int end_z = global_sys.zlen * (coords[2]+1) / nproc_z +1;
+    const long int end_z = global_sys.zlen * (coords[0]+1) / nproc_z +1;
 
     std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
     local_spins local_sys(global_sys,
@@ -448,7 +452,7 @@ int main(int argc, char* argv[]){
     //MPI_Type_commit(&Vector_type);
     const int array_sizes[] = {local_sys.pad_xlen,local_sys.pad_ylen, local_sys.pad_zlen};
     // send subarrays
-    int subarray_sizes_x[] = { 1,local_sys.ylen,local_sys.zlen};
+    /*int subarray_sizes_x[] = { 1,local_sys.ylen,local_sys.zlen};
     int subarray_x_start[] = {0,1,1};
     MPI_Datatype x_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_x, subarray_x_start,
@@ -472,11 +476,11 @@ int main(int argc, char* argv[]){
     int xstride_mult = local_sys.pad_xlen*8;
     // Define displacements of send and receive in bottom top left right.
     MPI_Aint sdispls[6] = { 8,
-                            local_sys.zlen*8 ,
+                            local_sys.xlen*8 ,
                             xstride_mult,
                             local_sys.ylen*xstride_mult,
                             xyplane_mult,
-                            local_sys.pad_zlen*xyplane_mult                          
+                            local_sys.zlen*xyplane_mult                          
                             };
     MPI_Aint rdispls[6] = {0,
                             (local_sys.xlen+1)*8,
@@ -488,7 +492,50 @@ int main(int argc, char* argv[]){
     
     MPI_Datatype sendtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
     MPI_Datatype recvtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
+    */
+    int subarray_sizes_h[] = { local_sys.zlen,local_sys.ylen,1};
+    int subarray_h_start[] = {1,1,0};
+    MPI_Datatype h_type;
+    MPI_Type_create_subarray (3, array_sizes, subarray_sizes_h, subarray_h_start,
+                            MPI_ORDER_C, MPI_DOUBLE, &h_type);
+    MPI_Type_commit(&h_type);
 
+    int subarray_sizes_v[] = {local_sys.zlen, 1, local_sys.xlen};
+    int subarray_v_start[] = {1,0,1};
+    MPI_Datatype v_type;
+    MPI_Type_create_subarray (3, array_sizes, subarray_sizes_v, subarray_v_start,
+                            MPI_ORDER_C, MPI_DOUBLE, &v_type);
+    MPI_Type_commit(&v_type);
+
+    int subarray_sizes_d[] = { 1, local_sys.zlen,local_sys.xlen};
+    int subarray_d_start[] = {0,1,1};
+    MPI_Datatype d_type;
+    MPI_Type_create_subarray (3, array_sizes, subarray_sizes_d, subarray_d_start,
+                            MPI_ORDER_C, MPI_DOUBLE, &d_type);
+    MPI_Type_commit(&d_type);
+    int element_size = sizeof(double);
+    int nhalo = 1;
+    int xyplane_mult = local_sys.pad_ylen*local_sys.pad_xlen*element_size; //8 because datatype is 3 doubles, 
+    int xstride_mult = local_sys.pad_xlen*element_size;
+    // Define displacements of send and receive in bottom top left right.
+    MPI_Aint sdispls[6] = { nhalo          * xyplane_mult,
+                            local_sys.zlen * xyplane_mult,
+                            nhalo          * xstride_mult,
+                            local_sys.ylen * xstride_mult,
+                            nhalo          * element_size,
+                            local_sys.xlen * element_size                          
+                            };
+    MPI_Aint rdispls[6] = {0,
+                           (local_sys.zlen+1) * xyplane_mult,
+                           0,
+                           (local_sys.ylen+1) * xstride_mult,
+                           0,
+                           (local_sys.zlen+1) * element_size,
+                           };
+    
+    MPI_Datatype sendtypes[6] = { d_type, d_type, v_type, v_type, h_type, h_type};
+    MPI_Datatype recvtypes[6] = { d_type, d_type, v_type, v_type, h_type, h_type};
+    
     //========================================================================================
     //========================= END OF GHOST CELL COMMUNICATION SETUP ========================
     //========================================================================================
@@ -554,13 +601,15 @@ int main(int argc, char* argv[]){
         }
         std::ofstream file(global_sys.filename); // open file
         Writeoutput(global_sys, file, cart_comm);
-    } 
-    MPI_Type_free(&x_type);
-    MPI_Type_free(&y_type);
-    MPI_Type_free(&z_type);
+    }
+    MPI_Type_free(&h_type);
+    MPI_Type_free(&v_type);
+    MPI_Type_free(&d_type);
     //MPI_Type_free(&Vector_type);
+    MPI_Barrier(cart_comm);
+    std::cout << "Rank " << mpi_rank << " Finished" << std::endl;
 
     MPI_Finalize();
-    
+    std::cout << "MPI FInalized"<<std::endl;
     return 0;
 }
