@@ -343,7 +343,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
     std::cout << "Rank " << mpi_rank << " Neighbors: " << neighbors[0] << " " << neighbors[1] << " " << neighbors[2] << " " << neighbors[3] << " " <<
         neighbors[4] << " " << neighbors[5] << std::endl;
     for (int iteration=0; iteration<local_iterations; iteration++){
-        if (iteration%1 == 0) std::cout<<"Iter "<<iteration << " on " << mpi_rank<<"\n";
+        //if (iteration%1 == 0) std::cout<<"Iter "<<iteration << " on " << mpi_rank<<"\n";
         // =======================================================
         // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
         // =======================================================
@@ -353,7 +353,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         
         // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
         
-        
+        /*
         MPI_Status status;
         if(verbose) std::cout << "Rank " << mpi_rank << " off x " << localsys.offset_x << " off y " <<localsys.offset_y<< " off z " <<localsys.offset_z << std::endl;
         for (int i=0; i<6;i++){
@@ -374,7 +374,9 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                 std::cout<<"Finished update on " <<index_received<<" "<<index<< " "<<mpi_rank<<"\n";
             }
         }
+        */
         bool flip = false;
+        
         // Choose a random spin site
         srand(iteration+mpi_rank);
         int rand_site = rand()%(localsys.n_spins);
@@ -416,6 +418,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                 new_energy = old_energy;
             }
         }
+        /*
         if(flip){
             std::vector<int> edges = {0,0,0,0,0,0};
             check_if_we_are_on_edge(localsys,rand_site,edges);
@@ -429,7 +432,11 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                 }
             }
         }    
+        */
         MPI_Barrier(MPI_COMM_WORLD);
+        exchange_ghost_cells(localsys,sdispls, rdispls, 
+                        sendtypes, recvtypes,
+                        cart_comm);
     }
     std::cout <<"Finished my jobs /"<<mpi_rank<<"\n";
     MPI_Barrier(cart_comm);
