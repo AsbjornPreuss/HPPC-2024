@@ -9,7 +9,7 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 2,nproc_z=2;
+int nproc_x = 3, nproc_y = 3,nproc_z=3;
 enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = false;
@@ -70,7 +70,7 @@ class spin_system {
     xlen = n_spins_row;
     ylen = n_spins_row;
     zlen = n_spins_row;
-    std::cout << "Nspins row " << n_spins_row << std::endl;
+    if(verbose) std::cout << "Nspins row " << n_spins_row << std::endl;
     }
 };
 
@@ -330,8 +330,8 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
     int flipped = 0;
     if(verbose) std::cout << old_state[0] << " " << old_state[1] << " " << old_state[2] << std::endl;
     
-    auto begin = std::chrono::steady_clock::now();
-    std::cout << "Temp: " <<sys.Temperature
+    
+    if(verbose)std::cout << "Temp: " <<sys.Temperature
                             << std::endl;
 
     int local_iterations = sys.flips/mpi_size;
@@ -339,9 +339,9 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
     exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
                         cart_comm);
-    if(verbose) std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
+    if(verbose){ std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
     std::cout << "Rank " << mpi_rank << " Neighbors: " << neighbors[0] << " " << neighbors[1] << " " << neighbors[2] << " " << neighbors[3] << " " <<
-        neighbors[4] << " " << neighbors[5] << std::endl;
+        neighbors[4] << " " << neighbors[5] << std::endl;}
     for (int iteration=0; iteration<local_iterations; iteration++){
         //if (iteration%1 == 0) std::cout<<"Iter "<<iteration << " on " << mpi_rank<<"\n";
         // =======================================================
@@ -438,16 +438,14 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                         sendtypes, recvtypes,
                         cart_comm);
     }
-    std::cout <<"Finished my jobs /"<<mpi_rank<<"\n";
+    if(verbose) std::cout <<"Finished my jobs /"<<mpi_rank<<"\n";
     MPI_Barrier(cart_comm);
-   
+    if(verbose){
+        std::cout << "Not flipped no. is " << not_flipped << std::endl;
+        std::cout << "Flipped no. is " << flipped << std::endl;
+        std::cout << "Total energy: " << localsys.H << std::endl;
+    }
     Calculate_h(localsys, cart_comm);
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
-    std::cout << "Not flipped no. is " << not_flipped << std::endl;
-    std::cout << "Flipped no. is " << flipped << std::endl;
-    std::cout << "Total energy: " << localsys.H << std::endl;
-    
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
@@ -498,7 +496,7 @@ int main(int argc, char* argv[]){
     const long int end_y = global_sys.ylen * (coords[1]+1) / nproc_y +1; 
     const long int end_z = global_sys.zlen * (coords[0]+1) / nproc_z +1;
 
-    std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
+    if(verbose) std::cout << mpi_rank << " " << end_x << " " << offset_x << " "<< end_y << " " << offset_y <<" "<< end_z<<" " << offset_z<<std::endl;
     local_spins local_sys(global_sys,
             end_x-offset_x-2, end_y-offset_y-2, end_z-offset_z-2,
             offset_x, offset_y, offset_z);
@@ -617,13 +615,21 @@ int main(int argc, char* argv[]){
     generate_neighbours(local_sys);
     //Magic TODO h as reduction
     Calculate_h(local_sys, cart_comm);
+    
+    auto begin = std::chrono::steady_clock::now();
     Simulate(global_sys,local_sys,*sdispls, *rdispls, 
                         *sendtypes, *recvtypes,
                         cart_comm,
                         neigbors, global_sys);
+    auto end = std::chrono::steady_clock::now();
+
+    
     MPI_Barrier(cart_comm);
     MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
-    if (mpi_rank == 0) std::cout << "Final energy: " << global_sys.H << std::endl;
+    if (mpi_rank == 0){ std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+                        std::cout << global_sys.H << " " << (end-begin).count() / 1000000000.0 << " " << global_sys.Temperature << " " << global_sys.B <<
+                              " " << global_sys.n_spins << " " << mpi_size << " " << 1 << std::endl;
+                          }
     std::vector<double> px, py, pz;
     std::vector<double> sx, sy, sz;
     std::vector<double> energy;
@@ -691,9 +697,7 @@ int main(int argc, char* argv[]){
     MPI_Type_free(&d_type);
     //MPI_Type_free(&Vector_type);
     MPI_Barrier(cart_comm);
-    std::cout << "Rank " << mpi_rank << " Finished" << std::endl;
 
     MPI_Finalize();
-    std::cout << "MPI FInalized"<<std::endl;
     return 0;
 }

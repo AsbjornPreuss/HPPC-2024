@@ -10,7 +10,7 @@ bool verbose = false;
 class spin_system {
     public:
     int flips = 100; // Number of flips the system will simulate.
-    int n_spins = 125; // Number of spins in The system.
+    int n_spins = 216; // Number of spins in The system.
     int n_dims = 3; // Number of dimensions the spins are placed in.
     int n_spins_row; // Number of rows in the square/cube
 
@@ -163,8 +163,8 @@ void Simulate(spin_system& sys){
     if(verbose) std::cout << old_state[0] << " " << old_state[1] << " " << old_state[2] << std::endl;
     
     auto begin = std::chrono::steady_clock::now();
-    std::cout << "Temp: " <<sys.Temperature//<< " Boltzmann: " << Boltzmann 
-                            << std::endl;
+    //std::cout << "Temp: " <<sys.Temperature//<< " Boltzmann: " << Boltzmann 
+    //                        << std::endl;
     for (int iteration=0; iteration<sys.flips; iteration++){
         // Choose a random spin site
         srand(iteration);
@@ -216,20 +216,20 @@ void Simulate(spin_system& sys){
         }
         
         // Change H to represent the total energy of the system. Gave wrong results. Unclear why. Currently commented out. H is just calculated at the end, as it is not used anywhere in the loop anyway.
-        //sys.H = sys.H - old_energy + new_energy;
+        //sys.H = sys.H - old_energy + new_energy; 
+
     }
     Calculate_h(sys);
     auto end = std::chrono::steady_clock::now();
-    std::cout << "Elapsed Time: " << (end-begin).count() / 1000000000.0 << std::endl;
-    std::cout << "Not flipped no. is " << not_flipped << std::endl;
-    std::cout << "Flipped no. is " << flipped << std::endl;
-    std::cout << "Total energy: " << sys.H << std::endl;
+    std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+    std::cout << sys.H << " " << (end-begin).count() / 1000000000.0 << " " << sys.Temperature << " " << sys.B <<
+                              " " << sys.n_spins << " " << 1 << " " << 0 << std::endl;
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
 //=============================================================================================
 int main(int argc, char* argv[]){
-    std::cout << "Hello Heisenberg!" << std::endl;
+    //std::cout << "Hello Heisenberg!" << std::endl;
 
     //Load config
     spin_system sys({argv, argv+argc});
