@@ -12,7 +12,7 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 2, nproc_y = 2,nproc_z=2;
+int nproc_x = 4, nproc_y = 4,nproc_z=4;
 enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = false;
@@ -676,9 +676,9 @@ int main(int argc, char* argv[]){
     
     MPI_Barrier(cart_comm);
     MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
-    if (mpi_rank == 0){ std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+    if (mpi_rank == 0){ std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "No_of_flips " << "Version " <<std::endl;
                         std::cout << global_sys.H << " " << (end-begin).count() / 1000000000.0 << " " << global_sys.Temperature << " " << global_sys.B <<
-                              " " << global_sys.n_spins << " " << mpi_size << " " << 1 << std::endl;
+                              " " << global_sys.n_spins << " " << mpi_size << " " << global_sys.flips << " " << 2 << std::endl;
                           }
     if(global_sys.write==1){
     std::vector<double> px, py, pz;
