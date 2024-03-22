@@ -27,6 +27,7 @@ class spin_system {
     double B = 0; // Magnetic field in z direction
     double Temperature = 1; // Temperature of the system.
     std::string filename = "seq_out.txt"; // Output file.
+    int write = 1;
     std::vector<std::vector<double>> position; // Three by n_spins matrix, defining the spin's 3d position.
     std::vector<std::vector<double>> spin; // Three by n_spins matrix, defining the spin vector for each spin.
     std::vector<std::vector<int>>    neighbours; // 2*n_dims by n_spins matrix, defining the neighbour indices of each cell, so they need only be calculated once.
@@ -36,7 +37,7 @@ class spin_system {
             if(arg=="-h"){ // Write help
                 std::cout << "Heisenberg_simulation\n --flips <number of flips performed>\n --nspins <number of spins simulated>\n --ndims <number of dimensions to simulate> \n"
                           << " --ofile <filename>\n --magnet <strength of external magnetic field in z direction>\n"
-                          << " --temp <temperature> \n";
+                          << " --temp <temperature> \n" << " --writeout <write to data file (1 for true, 0 for false)>\n";
 
                 exit(0);
                 break;
@@ -52,6 +53,8 @@ class spin_system {
                 B = std::stoi(argument[i+1]);
             } else if(arg=="--temp"){
                 Temperature = std::stod(argument[i+1]);
+            } else if(arg=="--writeout"){
+                write = std::stoi(argument[i+1]);
             } else{
                 std::cout << "---> error: the argument type is not recognized \n";
             }
@@ -146,12 +149,19 @@ void Calculate_h(spin_system& sys){
 // Write the spin configurations in the output file.
 void Writeoutput(spin_system& sys, std::ofstream& file){  
     // Loop over all spins, and write out position and spin direction
-    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Spin_energy" << std::endl;
+    file << "Position_x " << "Position_y " << "Position_z " << "Spin_x " <<  "Spin_y " <<  "Spin_z " <<  "Spin_energy " << "Temperature " << "n_spins" << std::endl;
     for (int i = 0; i<sys.n_spins; i++){
-        file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
+        if (i == 0) {
+            file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
+                << sys.spin[i][0] << " " << sys.spin[i][1] << " "  << sys.spin[i][2] << " "
+                << energy_calculation_nd(sys,i) << " " << sys.Temperature << " " << sys.n_spins
+                << std::endl;
+        } else {
+            file << sys.position[i][0] << " " << sys.position[i][1] << " "  << sys.position[i][2] << " "
             << sys.spin[i][0] << " " << sys.spin[i][1] << " "  << sys.spin[i][2] << " "
             << energy_calculation_nd(sys,i)
             << std::endl;
+        }
     }
 };
 
@@ -221,7 +231,7 @@ void Simulate(spin_system& sys){
     }
     Calculate_h(sys);
     auto end = std::chrono::steady_clock::now();
-    std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+    std::cout << "Final_energy " << "Elapsed_time " << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
     std::cout << sys.H << " " << (end-begin).count() / 1000000000.0 << " " << sys.Temperature << " " << sys.B <<
                               " " << sys.n_spins << " " << 1 << " " << 0 << std::endl;
 }
@@ -243,6 +253,8 @@ int main(int argc, char* argv[]){
     Calculate_h(sys);
     Simulate(sys);
 
-    std::ofstream file(sys.filename); // open file
-    Writeoutput(sys, file);
+    if (sys.write) {
+        std::ofstream file(sys.filename); // open file
+        Writeoutput(sys, file);
+    }
 }
