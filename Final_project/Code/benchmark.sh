@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for side in 10 30 100 300 1000 3000; do
+for side in 10 30 100 300;do
 	nspins=$(($side * $side * $side))
 	echo $nspins
 for temperature in 0.001; do
