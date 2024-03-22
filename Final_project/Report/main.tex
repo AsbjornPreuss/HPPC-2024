@@ -24,46 +24,121 @@ breakatwhitespace=true,
 numbers=left
 }
 \title{3-Dimensional Heisenberg Model}
-\author{Asbjørn Bonefeld Preuss,\\ Daniel Lomholt Christensen,\\ Elie Cueto \\ Frederik Aaboe Andersen \\ Emilie Berg \\ Nete Wenyu Orland Lyndrup}
+\author{Asbjørn Bonefeld Preuss \and Daniel Lomholt Christensen \and Elie Cueto \and Frederik Aaboe Andersen \and Emilie Berg \and Nete Wen Yu O. Lyndrup}
 \date{March 2024}
 
-\renewcommand{\thesection}{Task \#\arabic{section}}
+\renewcommand{\thesection}{Section \arabic{section}}
 \renewcommand{\thesubsection}{\arabic{section}.\arabic{subsection}}
 \begin{document}
 \maketitle
 
 \section{Introduction}
-This project seeks to implement the three dimensional Heisenberg model, into C++, and attempt to optimize the implementation, to allow simulations of larger systems, faster.
+This project seeks to implement the three-dimensional Heisenberg model into C++, and attempt to optimize the implementation, to allow simulations of larger systems, faster.
 
-The project therefore starts with an Introduction to the Heiseberg model, followed by an overview of a sequential implementation, and then the different parallelizations that will be used to optimize the sequential implementation. Finally, a chapter showing the weak and strong scaling of the different versions, as well as profiling of the versions is presented.
+The project therefore starts with an Introduction to the Heisenberg model, followed by an overview of a sequential implementation, and then the parallelization that will be used to optimize the sequential implementation. Finally, a chapter showing the weak and strong scaling of the different versions, as well as profiling of the versions are presented.
 
 \subsection{The Heisenberg Model}
-The goal of the Heisenberg model is to predict the behaviour of condensed matter systems.
-The Heisenberg model assumes a N$\times$N$\times$N cube, occuppied by N$\times$N$\times$N spins. These spins are vectors that can point in any direction, in 3-d space. Each of these spins are generated with a random spin vector initially. 
+The goal of the Heisenberg model is to predict the behavior of condensed matter systems.
+The Heisenberg model assumes an N$\times$N$\times$N cube, occupied by N$\times$N$\times$N spins. These spins are vectors that can point in any direction in 3-d space. Each of these spins are generated as a random spin vector initially. 
 
-Then the Metropolis-Hastings Monte Carlo algorithm is used. This algorithm selects a random site, and flips it in a new, random direction. If the flip minimizes the energy of the system, it is accepted. If not, a flip propability is calculated. This propability is $P=\exp\left(-\frac{\Delta E}{k_bT}\right)$. %TODO: Citation on the propability
-A random number is then generated. If the random number is smaller than the propability, the flip is accepted. Otherwise the flip is rejected, and the system remains the same.
+Then the Metropolis-Hastings Monte Carlo algorithm is used. This algorithm selects a random site and flips it in a new, random direction. If the flip minimizes the energy of the system, it is accepted. If not, a flip probability is calculated. This probability is $P=\exp\left(-\frac{\Delta E}{k_bT}\right)$. %TODO: Citation on the probability
+A random number is then generated. If the random number is smaller than the probability, the flip is accepted. Otherwise, the flip is rejected, and the system remains the same.
 
-The energy of this system is calculated by the Hamiltonian\cite{Heisenberg},
+The energy of the system is calculated by the Hamiltonian considering the 6 nearest neighbors of the spin \cite{Heisenberg},
 \begin{equation}
     H = - \frac{J}{2}\sum_{n, \lambda}\mathbf{S_n}\cdot\mathbf{S_{n + \lambda}}.
     \label{Hamiltonian}
 \end{equation}
-At each flip, the energy of the old spin, and new spin must be calculated according to \ref{Hamiltonian}. 
+At each flip, the energy of the old spin and new spin must be calculated according to equation \ref{Hamiltonian}. 
 
-\section{Sequential implementation}
-The initial implementation first creates a class \verb|spin_system|, most importantly containing a vector of vectors of positions, and a vector of vectors of spins, that are both initially empty. Two generator functions are then called, that create the positions of the spins, and the spin vectors. After this, another generator finds each spins' neigbours in all directions.
+\section{Sequential Implementation} \label{sec:seq_imp}
+The initial implementation first creates a class \verb|spin_system|, most importantly containing a vector of vectors of positions and a vector of vectors of spins, which are both initially empty. Two generator functions are then called that create the positions of the spins and the spin vectors. After this, another generator finds each spins' neighbors in all directions.
 
-Then the simulation begins. A random site is chosen (seeded by which number of iteration it is), and the energy of the current system, as well as the old spin state is recorded. 
+Then the simulation begins. A random site is chosen (seeded by the number of iteration it is), and the energy of the current system, as well as the old spin state, is recorded. The new spin direction is calculated, as well as put directly into the system of spins, and its energy is found - each spin is set to have six neighbors that influence the mentioned. The two energies are compared. If the new energy is lower, the spin-flip is accepted. If the new energy is higher, the probability of acceptance is calculated. A random number (seeded by twice the iteration it is) is found. If the probability is smaller than the random number, the change is not accepted, and the old state of the spin is restored. This is done flip times, as requested in the command line. Our goal is to perform the simulation until convergence of the system (for temperatures below the critical temperature). We have applied an external B-field to the system that points in the z-direction. So we can check if the system has converged by checking that the magnetization of the system is parallel to the external B-field.
 
-The new spin direction is calculated, as well as put directly into the system of spins, and its energy is found. The two energies are compared, and if the new energy is higher, the probability of acceptance is calculated. A random number (seeded by twice the iteration it is) is found. If the probability is smaller than the random number, the change is not accepted, and the old state of the spin is restored.
+We expect the sequential version to be very slow for large system sizes since the single processor has to run through every single spin in the system for each time step in the simulation. Therefore, it is beneficial to exploit the potential parallelism in the problem and thereby speeding up the simulation which is the topic of the next sections.
 
-This is done flip times, as requested in the command line.
+\section{Parallelization}
+There are two versions of the parallelization of the program. In both versions, 3-dimensional domain decomposition with distributed memory is used, and the program \texttt{MPI} is used for ghost cell communications between neighboring domains. The 3D global system is divided into 3D local subsystems, and each rank is assigned to a local system. There is given a set number of flips to simulate the global system, where each local system has to run $\frac{flips}{\#ranks}$ number of iterations. All ranks start by exchanging the edge of their domain with their neighbors (these are the ghost cells) with a \texttt{MPI\_Neighbor\_alltoallw}. The exchange of ghost cells is necessary since the calculation of the energy difference for two different states uses the nearest neighbors of the spins. So when a spin is flipped at the edge of a local system, the globally adjacent spins which belong to another local system needs to be known.
 
-\section{Parallelizations}
+In version one, with each iteration, the ranks do the flipping in their local systems as in \ref{sec:seq_imp} and regardless of whether something flipped or not, and regardless of whether the flipped spin is at the local domain's edge or not, the ranks will send an "entire wall" of ghost-cells to its neighbors with \texttt{MPI\_Neighbor\_alltoallw}. This works, but it is not the most efficient way to exchange ghost cells. This is because it is only when a spin somewhere on the edge of a local domain is flipped that the neighbor's ghost cells need updating. If a spin is flipped in the interior of a local domain or if a proposed flip at the edge is rejected, then the neighboring domain will receive the same ghost cell values that it already has.
+
+In version two we have implemented a different way to exchange ghost cells that does not have the inefficiency of version 1. With each iteration, a rank wants first to check if its neighbor has sent it anything, here \texttt{MPI\_Iprobe} is called. If the flag is output from \texttt{MPI\_Iprobe}, the rank shall use \texttt{MPI\_Recv}, which is a blocking receive, such taht it can update its ghost-cells. \texttt{MPI\_Iprobe} is used to avoid putting a lot of non-blocking receives that may not need to receive as the edges of the neighboring ranks do not flip often for bigger systems.
+
+A rank can now choose a random spin and do the flipping as explained in \ref{sec:seq_imp}. If a flip is performed at the edge, the rank sends non-blocking - by \texttt{MPI\_Isend} - \textit{only} the information of the given changed spin to the  neighbors' ghost cells - not the whole "wall" as in version 1, and only to the neighbors that need it. An \texttt{MPI\_Barrier} is placed to ensure that the iteration is done before continuing on to the next iteration. Another barrier is also added to ensure that all ranks are done with their job before the next time step can be started, which is done in both versions.
+
+Lastly, for both versions when the simulation is done, all local systems are gathered on rank 0 with \texttt{MPI\_Gather}. This way we end up with the global system.
+
+\section{Results from simulations}
+We have run the simulation for multiple temperatures and different system sizes. From this we obtain data for energy, magnetization, etc. This data is investigated in this section.
+
+\subsection{Energy}
+In PLOT, we have visualized the total energy per spin as a function of temperature. Our program outputs the energy of each spin for the last iteration (when the system should have converged). We can find the total energy per spin from
+
+\begin{equation}
+    E = \frac{\sum{E_{j}}}{\#spin},
+\end{equation}
+
+where $j$ runs over each spin.
+
+\subsection{Magnetization}
+We have also visualized the magnetization of the system as a function of temperature, which can be seen in PLOT. The components of the magnetization vector for the whole system is found from the individual spins through
+
+\begin{equation}
+    M^{i} = \frac{\sum{S_j^{i}}}{\#spin},
+\end{equation}
+
+where $i=x,y,z$ and $j$ runs over each spin.
+
+\subsection{Critical temperature}
+The critical temperature of the system is the temperature where the system no longer converges. Since the external B-field applied to the system points in the z-direction, we can find the critical temperature by plotting the z-component of the magnetization of the system.
+
+\subsection{Heat capacity}
+From the energy of the individual spins, it is possible to obtain the heat capacity of the system given by
+
+\begin{equation}
+    C_v \propto \frac{\left< E^2 \right> - \left< E \right>^2}{\#spin}.
+\end{equation}
+
+Hence, we simply need to compute the mean of the squared energy of each spin and subtract the square of the mean energy of the spins and divide by the total number of spins in the system. We have done this for the different temperatures, and the result is plotted in PLOT.
 
 \section{Scaling}
 
+We have investigated the strong and weak scaling of our parallel implementation. Hence, we have performed bench marking of both versions of our parallel code and our sequential version in order to compute the speedup of each version of the parallel code compared to the sequential as a function of the number of processors used in the parallel versions. Hence, the speedup is given by
+
+\begin{equation}
+    \text{Speedup}(N) = \frac{T_{seqential}(N)}{T_{parallel}}.
+\end{equation}
+
+In strong scaling, the size of the problem is kept fixed as the number of processors is increased. In weak scaling, the problem size is scaled linearly to the number of processors.
+
+\subsection{Strong scaling}
+To obtain the theoretical parallel fraction of the code according to strong scaling, we have fitted our data to Amdahl's law which is given by
+
+\begin{equation}
+    \text{Speedup}(N) = \frac{1}{S+P/N} = \frac{1}{1-P+P/N},
+\end{equation}
+
+where $N$ is the number of processors, $P$ is the parallel fraction of the code and $S$ is the sequential fraction of the parallel code.
+
+\subsection{Weak scaling}
+
+To obtain the theoretical parallel fraction of our code according to weak scaling, we have fitted our data to Gustafson's law given by
+
+\begin{equation}
+    \text{Speedup}(N) = N - S(N-1),
+\end{equation}
+
+where $N$ is the number of processors and $S$ is the sequential fraction of the parallel code. Hence, we expect the speedup to scale linearly with the number of processors for weak scaling.
+
+\section{Conclusion}
+
+\section{Further ideas}
+Her tænkte jeg vi kunne skrive lidt om hvad vi ville have gjort yderligere, hvis vi havde haft mere tid. :)
+
+\section{Source Code}
+\label{sec:source}
+\lstinputlisting[language=c++]{../Code/fwc_parallel.cpp}
 \printbibliography
 
 \end{document}
