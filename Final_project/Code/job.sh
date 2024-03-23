@@ -8,7 +8,7 @@
 output_file="seq_out";
 #.txt";
 #echo "Position_x Position_y Position_z Spin_x Spin_y Spin_z Spin_energy" > $output_file;
-echo $Temperature $nspins;
+echo $Temperature $nspins $flip;
 mpiexec apptainer exec \
 ~/modi_images/ucphhpc/hpc-notebook:latest \
-./seq_hsb --temp $Temperature --nspins $nspins --ofile Data/${output_file}_${Temperature}_${nspins}.txt --magnet 0.05;
+./seq_hsb --temp $Temperature --nspins $nspins --flips $flip --ofile Data/${output_file}_${Temperature}_${nspins}.txt --magnet 0.05;

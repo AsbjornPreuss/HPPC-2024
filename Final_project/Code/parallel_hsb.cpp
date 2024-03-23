@@ -1,5 +1,8 @@
 #include <vector>
+
 #include <iostream>
+#include <iomanip>
+
 #include <fstream>
 #include <chrono>
 #include <cmath>
@@ -9,7 +12,7 @@
 
 int mpi_size;
 int mpi_rank;
-int nproc_x = 3, nproc_y = 3,nproc_z=3;
+int nproc_x = 4, nproc_y = 4,nproc_z=4;
 enum {ghost_cell_request, ghost_cell_answer};
 
 bool verbose = false;
@@ -18,7 +21,7 @@ class spin_system {
     int flips = 100; // Number of flips the system will simulate.
     int n_spins = 64; // Number of spins in The system.
     int n_dims = 3; // Number of dimensions the spins are placed in.
-    int n_spins_row; // Number of rows in the square/cube
+    float N_spins_row; // Number of rows in the square/cube
 
     int x_offsets[6] = {-1,0,0,1,0,0}; // For calculating neighbor indices in energy calculation
     int y_offsets[6] = {0,-1,1,0,0,0};
@@ -68,8 +71,8 @@ class spin_system {
                 std::cout << "---> error: the argument type is not recognized \n";
             }
         }
-    n_spins_row = cbrt(double(n_spins)); //Equal size in all dimensions
-
+    N_spins_row = cbrt(double(n_spins)); //Equal size in all dimensions
+    int n_spins_row = round(N_spins_row);
     xlen = n_spins_row;
     ylen = n_spins_row;
     zlen = n_spins_row;
@@ -133,6 +136,7 @@ class local_spins{
 
 
     int index_to_padded_index(int index){
+
         int x = index%(no_in_layer)%xlen + 1;
         int y = (index%(no_in_layer))/xlen + 1;
         int z = index/(no_in_layer) + 1;
@@ -171,14 +175,39 @@ class local_spins{
         y += offset_y+1;
         z += offset_z+1;
         g_index = x%global_x + (y%global_y) * global_x + (z%global_z) * global_x * global_y;
+        //if(mpi_rank==3)std::cout <<mpi_rank<<" "<< p_index<<" "<<g_index<<" " << x<<" "<<y<<" "<<z<<"\n";
+
     }
 
     void global_index_to_padded_index(int g_index, int &p_index, int global_x, int global_y, int global_z){
-        int x = (g_index % global_x - (offset_x+1)+pad_xlen)%pad_xlen;
-        int y = ((g_index/global_y)%global_y - (offset_y+1)+pad_ylen)%pad_ylen ;
-        int z = (g_index / (global_y * global_x) - (offset_z+1)+pad_zlen)%pad_zlen;
-        std::cout << x<<" "<<y<<" "<<z<<"\n";
+        // Find global coordinaetes
+        int g_x = g_index % global_x;  
+        int g_y = (g_index/global_y)%global_y;
+        int g_z = g_index / (global_y * global_x);
+
+        // Define padded coords
+        int x,y,z;
+        
+        if(g_x==0&&offset_x==global_x-xlen-1){x=pad_xlen-1;} //If on the left / bottom / back edge, of global, and local is on the right / top / front edge, set to be on the right / top / front edge
+        else{
+        x = (g_x -(offset_x)); // Convert from global to padded index
+        if(x==global_x) x=0; // if on the right / top / front edge, set to be on the left / bottom / back edge.
+        x = (x + pad_xlen)%pad_xlen; // Makes sure is non-negative
+        }
+        if(g_y==0&&offset_y==global_y-ylen-1){y=pad_ylen-1;}
+        else{
+        y = (g_y -(offset_y));
+        if(y==global_y) y=0;
+        y = (y + pad_ylen)%pad_ylen;
+        }
+        if(g_z==0&&offset_z==global_z-zlen-1){z=pad_zlen-1;}
+        else{
+        z = (g_z -(offset_z));
+        if(z==global_z) z=0;
+        z = (z + pad_zlen)%pad_zlen;
+        }
         padded_coordinates_to_padded_index(p_index,x,y,z);
+        //if(mpi_rank==1)std::cout <<mpi_rank<<" "<<std::setw(3)<< g_index<<" "<<std::setw(3)<<p_index<<" " << x<<" "<<y<<" "<<z<<" " << offset_x<<" "<<offset_y<<" "<<offset_z<<"\n";
     }
 
     void recv_index_to_padded_index(int r_index, int dir, int p_index){
@@ -246,6 +275,7 @@ void generate_neighbours(local_spins &sys){
 double energy_calculation_nd(local_spins &sys, int spin, MPI_Comm& cart_comm){
     double energy = 0;
     double dot_product;
+    
     for (int i=0; i<6; i++){
         // Calculate the energy with the nearest neighbour with no corners
         dot_product = sys.spin[spin][0]*sys.spin[sys.neighbours[spin][i]][0] 
@@ -293,17 +323,19 @@ void exchange_ghost_cells(local_spins &local_sys,
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
                         MPI_Comm cart_comm){
     int counts[6] = {1,1,1,1,1,1};
-    // Make Proof of concept work
+    
+    // Define arrays for sending.
     std::vector<double> sx;
     std::vector<double> sy;
     std::vector<double> sz;
-    
+
+    // Fill arrays with the spins in each direction
     for (uint64_t i=0; i<local_sys.spin.size(); i++){
         sx.push_back(local_sys.spin[i][0]);
         sy.push_back(local_sys.spin[i][1]);
         sz.push_back(local_sys.spin[i][2]);
     }
-    // Send ghostcells
+    // Send ghostcells of spin in each direction
     if(verbose) std::cout << "Rank " << mpi_rank << " Starting exchange Size of spins is " << sx.size() << std::endl;
     MPI_Neighbor_alltoallw (sx.data(), counts,  &sdispls, &sendtypes,
                             sx.data(), counts,  &rdispls, &recvtypes, cart_comm); 
@@ -311,95 +343,89 @@ void exchange_ghost_cells(local_spins &local_sys,
                             sy.data(), counts,  &rdispls, &recvtypes, cart_comm); 
     MPI_Neighbor_alltoallw (sz.data(), counts,  &sdispls, &sendtypes,
                             sz.data(), counts,  &rdispls, &recvtypes, cart_comm); 
+    // Put the spin back in the system
     for(uint64_t i=0; i<local_sys.spin.size();i++){
         local_sys.spin[i] = {sx[i],sy[i],sz[i]};
     }
     if(verbose) std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of temp is" << sx.size() <<  std::endl;
-
+    
+    
 };
 
 // This function checks if the index is on the edge of the block, in 3 dimensions.
 void check_if_we_are_on_edge(local_spins &local_sys, int &check_index,std::vector<int> &edges){
     int x,y,z;
     local_sys.padded_index_to_padded_coordinates(check_index, x, y, z);
-    if(z==1) edges[0]=1;
-    if(z==local_sys.zlen) edges[1]=1;
+    if(x==1) edges[0]=1;
+    if(x==local_sys.zlen) edges[1]=1;
     if(y==1) edges[2]=1;
     if(y==local_sys.ylen) edges[3]=1;
-    if(x==1) edges[2]=1;
-    if(x==local_sys.xlen) edges[5]=1;
+    if(z==1) edges[4]=1;
+    if(z==local_sys.xlen) edges[5]=1;
 };
 
 void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Aint &rdispls, 
                         MPI_Datatype &sendtypes, MPI_Datatype &recvtypes,
                         MPI_Comm cart_comm,
                         int neighbors[6],spin_system& global_sys){
+    
     double old_energy, new_energy, spin_azimuthal, spin_polar, probability_of_change;
     std::vector<double> old_state(3);
     int not_flipped = 0;
     int flipped = 0;
-    if(verbose) std::cout << old_state[0] << " " << old_state[1] << " " << old_state[2] << std::endl;
-    
-    
-    if(verbose)std::cout << "Temp: " <<sys.Temperature
-                            << std::endl;
-
     int local_iterations = sys.flips/mpi_size;
     int request_ghost_index;
     exchange_ghost_cells(localsys,sdispls, rdispls, 
                         sendtypes, recvtypes,
                         cart_comm);
-    if(verbose){ std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
-    std::cout << "Rank " << mpi_rank << " Neighbors: " << neighbors[0] << " " << neighbors[1] << " " << neighbors[2] << " " << neighbors[3] << " " <<
-        neighbors[4] << " " << neighbors[5] << std::endl;}
+    //std::cout << "Rank " << mpi_rank << " Exchanged Ghost Cells" << " Size of spins is" << localsys.spin.size() <<  std::endl;
+    //std::cout << "Rank " << mpi_rank << " Neighbors: " << neighbors[0] << " " << neighbors[1] << " " << neighbors[2] << " " << neighbors[3] << " " <<
+        //neighbors[4] << " " << neighbors[5] << std::endl;
+    
     for (int iteration=0; iteration<local_iterations; iteration++){
-        //if (iteration%1 == 0) std::cout<<"Iter "<<iteration << " on " << mpi_rank<<"\n";
-        // =======================================================
-        // =========== POSSIBLE IMPLEMENTATION OF GHOST CELL======
-        // =======================================================
-        // First Irecv (non-blocking) from all the neighbors, in case they need a ghost cell
-        // If they do, then Send (blocking) the spin of that ghost cell
-        // The tags are in an enum earlier, but ghost_cell_request and ghost_cell_answer.
         
-        // Run through the 6 neighbors: nleft, nright, nbottom, ntop, nfront, nback
-        
-        /*
-        MPI_Status status;
         if(verbose) std::cout << "Rank " << mpi_rank << " off x " << localsys.offset_x << " off y " <<localsys.offset_y<< " off z " <<localsys.offset_z << std::endl;
+
+        // First we check each neighbor to see it we have received updates
         for (int i=0; i<6;i++){
-            double received[3];
             int index = -1;
             int thisFlag = 0;
+            MPI_Status status;
+            // Iprobe checks for incoming messages
             MPI_Iprobe(neighbors[i],MPI_ANY_TAG,cart_comm,&thisFlag,&status);
             if(thisFlag){
+                //if there is a message, we receive it and put it in the appropriate ghost cell
+                double received[3];
                 int index_received;
                 MPI_Status status2;
                 MPI_Recv(&received, 3, MPI_DOUBLE, neighbors[i], MPI_ANY_TAG, cart_comm, &status2);
                 index_received = status2.MPI_TAG;
-                std::cout << "Receiving update from " << index_received<<" "<<index<<"\n";
+                //if(mpi_rank==0)std::cout<<"Rank " << mpi_rank << " Receiving update from " << neighbors[i]<<"\n";
+                
                 localsys.global_index_to_padded_index(index_received,index,global_sys.xlen, global_sys.ylen, global_sys.zlen);
                 localsys.spin[index][0] = received[0];
                 localsys.spin[index][1] = received[1];
                 localsys.spin[index][2] = received[2];
-                std::cout<<"Finished update on " <<index_received<<" "<<index<< " "<<mpi_rank<<"\n";
+                //std::cout<<"Finished update on " <<index_received<<" "<<index<< " "<<mpi_rank<<"\n";
             }
         }
-        */
+        
         bool flip = false;
         
         // Choose a random spin site
         srand(iteration+mpi_rank);
         int rand_site = rand()%(localsys.n_spins);
         rand_site = localsys.index_to_padded_index(rand_site);
-        
+
         // Calculate its old energy
+        
         old_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
 
         // Store its old state. 
         old_state[0] = localsys.spin[rand_site][0];
         old_state[1] = localsys.spin[rand_site][1];
         old_state[2] = localsys.spin[rand_site][2];
-      
+
         // Generate new state
         spin_azimuthal = (double) rand()/RAND_MAX * M_PI;
         srand(mpi_rank*iteration + iteration);
@@ -411,6 +437,7 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
         flip = true;
         // Calculate if it lowers energy
         new_energy = energy_calculation_nd(localsys, rand_site, cart_comm);
+
         if (new_energy > old_energy){
             // If not, see if it should be randomised in direction
             if (verbose) std::cout << "New Energy: " << new_energy << " Old energy: " << old_energy << std::endl;
@@ -428,25 +455,28 @@ void Simulate(spin_system& sys, local_spins& localsys,MPI_Aint &sdispls, MPI_Ain
                 new_energy = old_energy;
             }
         }
-        /*
+
+        
         if(flip){
             std::vector<int> edges = {0,0,0,0,0,0};
             check_if_we_are_on_edge(localsys,rand_site,edges);
+            //std::cout << "Edges " << edges[0] << " " << edges[1] << " " << edges[2] << " " << edges[3] << " " << edges[4] << " " << edges[5] << " " <<std::endl;
             for(int i=0;i<6;i++){
                 if(edges[i]==1){
                     int send_index;
                     MPI_Request request;
-                    localsys.padded_index_to_global_index(rand_site, send_index, global_sys.xlen, global_sys.ylen, global_sys.zlen);
                     double send_spin[3] = {localsys.spin[rand_site][0],localsys.spin[rand_site][1],localsys.spin[rand_site][2]};
+
+                    localsys.padded_index_to_global_index(rand_site, send_index, global_sys.xlen, global_sys.ylen, global_sys.zlen);
                     MPI_Isend(&send_spin,3,MPI_DOUBLE,neighbors[i],send_index,cart_comm,&request);
                 }
             }
         }    
-        */
+        
         MPI_Barrier(MPI_COMM_WORLD);
-        exchange_ghost_cells(localsys,sdispls, rdispls, 
-                        sendtypes, recvtypes,
-                        cart_comm);
+        //exchange_ghost_cells(localsys,sdispls, rdispls, 
+        //                sendtypes, recvtypes,
+        //                cart_comm);
     }
     if(verbose) std::cout <<"Finished my jobs /"<<mpi_rank<<"\n";
     MPI_Barrier(cart_comm);
@@ -526,9 +556,6 @@ int main(int argc, char* argv[]){
      * HEAVILY INSPIRED BY https://github.com/essentialsofparallelcomputing/Chapter8/blob/master/GhostExchange/CartExchange3D_Neighbor/CartExchange.cc
      * LINE 110 AND FORWARD.
     */
-    //MPI_Datatype Vector_type;
-    //MPI_Type_contiguous(3,MPI_DOUBLE,&Vector_type);
-    //MPI_Type_commit(&Vector_type);
     
     // send subarrays
     /*int subarray_sizes_x[] = { 1,local_sys.ylen,local_sys.zlen};
@@ -572,47 +599,60 @@ int main(int argc, char* argv[]){
     MPI_Datatype sendtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
     MPI_Datatype recvtypes[6] = { x_type, x_type, y_type, y_type, z_type, z_type};
     */
-    const int array_sizes[] = {local_sys.pad_xlen,local_sys.pad_ylen, local_sys.pad_zlen};
-    int subarray_sizes_h[] = { local_sys.zlen,local_sys.ylen,1};
-    int subarray_h_start[] = {1,1,0};
+    MPI_Datatype Vector_type;
+//    MPI_Type_vector(1,3,0,MPI_DOUBLE,&Vector_type);
+    MPI_Type_contiguous(3,MPI_DOUBLE,&Vector_type);
+    MPI_Type_commit(&Vector_type);
+    
+
+    const int esize = 1;
+    const int fsize = 1;
+    const int array_sizes[] = {local_sys.pad_xlen*esize,local_sys.pad_ylen, local_sys.pad_zlen*fsize};
+    int subarray_sizes_h[] = { local_sys.zlen*esize,local_sys.ylen,1*fsize};
+    int subarray_h_start[] = {1*esize,1,0};
     MPI_Datatype h_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_h, subarray_h_start,
                             MPI_ORDER_C, MPI_DOUBLE, &h_type);
     MPI_Type_commit(&h_type);
 
-    int subarray_sizes_v[] = {local_sys.zlen, 1, local_sys.xlen};
-    int subarray_v_start[] = {1,0,1};
+    int subarray_sizes_v[] = {local_sys.zlen*esize, 1, local_sys.xlen*fsize};
+    int subarray_v_start[] = {1*esize,0,1*fsize};
     MPI_Datatype v_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_v, subarray_v_start,
                             MPI_ORDER_C, MPI_DOUBLE, &v_type);
     MPI_Type_commit(&v_type);
 
-    int subarray_sizes_d[] = { 1, local_sys.zlen,local_sys.xlen};
-    int subarray_d_start[] = {0,1,1};
+    int subarray_sizes_d[] = { 1*esize, local_sys.zlen,local_sys.xlen*fsize};
+    int subarray_d_start[] = {0,1,1*fsize};
     MPI_Datatype d_type;
     MPI_Type_create_subarray (3, array_sizes, subarray_sizes_d, subarray_d_start,
                             MPI_ORDER_C, MPI_DOUBLE, &d_type);
     MPI_Type_commit(&d_type);
+
+    
     int element_size = sizeof(double);
+    //std::cout << element_size << std::endl;
     int nhalo = 1;
     int xyplane_mult = local_sys.pad_ylen*local_sys.pad_xlen*element_size; //8 because datatype is 3 doubles, 
     int xstride_mult = local_sys.pad_xlen*element_size;
     // Define displacements of send and receive in bottom top left right.
-    MPI_Aint sdispls[6] = { nhalo          * xyplane_mult,
-                            local_sys.zlen * xyplane_mult,
+    MPI_Aint sdispls[6] = { nhalo          * xyplane_mult ,
+                            local_sys.zlen * xyplane_mult ,
                             nhalo          * xstride_mult,
                             local_sys.ylen * xstride_mult,
                             nhalo          * element_size,
                             local_sys.xlen * element_size                          
                             };
     MPI_Aint rdispls[6] = {0,
-                           (local_sys.zlen+1) * xyplane_mult,
+                           (local_sys.zlen+1) * xyplane_mult ,
                            0,
                            (local_sys.ylen+1) * xstride_mult,
                            0,
-                           (local_sys.zlen+1) * element_size,
+                           (local_sys.xlen+1) * element_size,
                            };
-    
+    for(int i=0;i<6;i++){
+    //    std::cout << "Rank " << mpi_rank << " Send " << i << " is "<< sdispls[i] << " Recv is " << rdispls[i] << std::endl;
+    }
     MPI_Datatype sendtypes[6] = { d_type, d_type, v_type, v_type, h_type, h_type};
     MPI_Datatype recvtypes[6] = { d_type, d_type, v_type, v_type, h_type, h_type};
     
@@ -636,10 +676,11 @@ int main(int argc, char* argv[]){
     
     MPI_Barrier(cart_comm);
     MPI_Reduce(&local_sys.H, &global_sys.H, 1, MPI_DOUBLE, MPI_SUM, 0, cart_comm);
-    if (mpi_rank == 0){ std::cout << "Final_energy " << "Elapsed_time " << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+    if (mpi_rank == 0){ std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "No_of_flips " << "Version " <<std::endl;
                         std::cout << global_sys.H << " " << (end-begin).count() / 1000000000.0 << " " << global_sys.Temperature << " " << global_sys.B <<
-                              " " << global_sys.n_spins << " " << mpi_size << " " << 2 << std::endl;
+                              " " << global_sys.n_spins << " " << mpi_size << " " << global_sys.flips << " " << 2 << std::endl;
                           }
+    if(global_sys.write==1){
     std::vector<double> px, py, pz;
     std::vector<double> sx, sy, sz;
     std::vector<double> energy;
@@ -660,9 +701,9 @@ int main(int argc, char* argv[]){
     int temp;
     for (int i = 0; i<local_sys.n_spins; i++){
                 temp = local_sys.index_to_padded_index(i);
-                px.push_back(local_sys.position[temp][0]);
-                py.push_back(local_sys.position[temp][1]);
-                pz.push_back(local_sys.position[temp][2]);
+                px.push_back(local_sys.position[temp][0]+local_sys.offset_x);
+                py.push_back(local_sys.position[temp][1]+local_sys.offset_y);
+                pz.push_back(local_sys.position[temp][2]+local_sys.offset_z);
                 sx.push_back(local_sys.spin[temp][0]);
                 sy.push_back(local_sys.spin[temp][1]);
                 sz.push_back(local_sys.spin[temp][2]);
@@ -699,15 +740,14 @@ int main(int argc, char* argv[]){
             global_sys.position.push_back({globpx[i], globpy[i], globpz[i]});
             global_sys.energy.push_back(globenergy[i]);
         }
-        if (global_sys.write) {
-            std::ofstream file(global_sys.filename); // open file
-            Writeoutput(global_sys, file, cart_comm);
-        }
+        std::ofstream file(global_sys.filename); // open file
+        Writeoutput(global_sys, file, cart_comm);
+    }
     }
     MPI_Type_free(&h_type);
     MPI_Type_free(&v_type);
     MPI_Type_free(&d_type);
-    //MPI_Type_free(&Vector_type);
+    MPI_Type_free(&Vector_type);
     MPI_Barrier(cart_comm);
 
     MPI_Finalize();

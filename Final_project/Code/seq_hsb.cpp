@@ -231,9 +231,9 @@ void Simulate(spin_system& sys){
     }
     Calculate_h(sys);
     auto end = std::chrono::steady_clock::now();
-    std::cout << "Final_energy " << "Elapsed_time " << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "Version " <<std::endl;
+    std::cout << "Final_energy: " << "Elapsed_time" << "Temperature " << "B_field " << "System_size " << "No_of_ranks " << "No_of_flips " << "Version " <<std::endl;
     std::cout << sys.H << " " << (end-begin).count() / 1000000000.0 << " " << sys.Temperature << " " << sys.B <<
-                              " " << sys.n_spins << " " << 1 << " " << 0 << std::endl;
+                              " " << sys.n_spins << " " << 1 << " " << sys.flips << " " << 0 << std::endl;
 }
 //=============================================================================================
 //=========================   MAIN FUNCTION   =================================================
